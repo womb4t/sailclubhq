@@ -25,29 +25,24 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // Refresh the session — keeps auth tokens alive
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const url = request.nextUrl.clone()
-  const isAuthRoute = url.pathname.startsWith('/login') || url.pathname.startsWith('/register')
-  const isDashboardRoute =
-    url.pathname.startsWith('/marks') ||
-    url.pathname.startsWith('/courses') ||
-    url.pathname.startsWith('/races') ||
-    url.pathname === '/dashboard' ||
-    url.pathname === '/'
+  const isAuthRoute = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/register')
+  const isProtectedRoute =
+    request.nextUrl.pathname.startsWith('/marks') ||
+    request.nextUrl.pathname.startsWith('/courses') ||
+    request.nextUrl.pathname.startsWith('/races') ||
+    request.nextUrl.pathname === '/dashboard'
 
-  // Redirect unauthenticated users away from dashboard routes
-  if (!user && isDashboardRoute && !isAuthRoute) {
+  if (!user && isProtectedRoute) {
+    const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // Redirect authenticated users away from auth routes
   if (user && isAuthRoute) {
-    url.pathname = '/'
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
     return NextResponse.redirect(url)
   }
 
