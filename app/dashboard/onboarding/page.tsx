@@ -24,6 +24,9 @@ export default function OnboardingPage() {
   const [error, setError] = useState('')
   const [vhfChannel, setVhfChannel] = useState('')
   const [showCreate, setShowCreate] = useState(false)
+  const [inviteCode, setInviteCode] = useState('')
+  const [inviteClub, setInviteClub] = useState<ClubResult | null>(null)
+  const [inviteError, setInviteError] = useState('')
 
   // Debounced search
   const search = useCallback(async (q: string) => {
@@ -116,6 +119,27 @@ export default function OnboardingPage() {
     }
 
     window.location.href = '/dashboard'
+  }
+
+  async function lookupInvite() {
+    if (!inviteCode.trim()) return
+
+    setInviteError('')
+    setInviteClub(null)
+
+    const supabase = getBrowserClient()
+    const { data, error: err } = await supabase
+      .from('clubs')
+      .select('id, name')
+      .eq('invite_code', inviteCode.trim().toLowerCase())
+      .maybeSingle()
+
+    if (err || !data) {
+      setInviteError('No club found with that code.')
+      return
+    }
+
+    setInviteClub(data)
   }
 
   const exactMatch = results.some(r => r.name.toLowerCase() === query.trim().toLowerCase())
@@ -226,9 +250,46 @@ export default function OnboardingPage() {
           </div>
         </Card>
 
-        <p className="text-center text-xs text-gray-400 mt-6">
-          Have an invite code? Ask your club admin for the join link.
-        </p>
+        <Card className="p-4 mt-4">
+          <div className="space-y-3">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Have an invite code?</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={inviteCode}
+                onChange={(e) => { setInviteCode(e.target.value); setInviteClub(null); setInviteError('') }}
+                placeholder="Paste code here"
+                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={lookupInvite}
+                disabled={!inviteCode.trim() || loading}
+              >
+                Look up
+              </Button>
+            </div>
+            {inviteError && (
+              <p className="text-xs text-red-600">{inviteError}</p>
+            )}
+            {inviteClub && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-green-800">✅ {inviteClub.name}</p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => handleJoin(inviteClub.id)}
+                  loading={loading}
+                >
+                  Join
+                </Button>
+              </div>
+            )}
+          </div>
+        </Card>
       </div>
     </div>
   )
