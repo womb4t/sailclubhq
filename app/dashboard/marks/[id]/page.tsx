@@ -31,6 +31,7 @@ export default function EditMarkPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [showReasonModal, setShowReasonModal] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [reason, setReason] = useState('')
   const [changes, setChanges] = useState<ChangeLog[]>([])
 
@@ -327,7 +328,58 @@ export default function EditMarkPage() {
           <Button type="button" variant="secondary" onClick={() => router.back()} className="flex-1">Cancel</Button>
           <Button type="submit" className="flex-1" size="lg">Save changes</Button>
         </div>
+
+        {/* Delete button */}
+        <div className="border-t border-gray-200 pt-4 mt-4">
+          <button
+            type="button"
+            onClick={() => setShowDeleteConfirm(true)}
+            className="text-sm text-red-500 hover:text-red-700 font-medium"
+          >
+            🗑 Delete this mark
+          </button>
+        </div>
       </form>
+
+      {/* Delete confirmation modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm space-y-4">
+            <h2 className="text-lg font-bold text-gray-900">Delete mark?</h2>
+            <p className="text-sm text-gray-500">
+              <strong>{name}</strong> ({shortId}) will be permanently removed from the club catalogue. This cannot be undone.
+            </p>
+            <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+              ⚠️ Existing races that used this mark will keep their snapshot data.
+            </p>
+            <div className="flex gap-3">
+              <Button type="button" variant="secondary" onClick={() => setShowDeleteConfirm(false)} className="flex-1">
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={async () => {
+                  setSaving(true)
+                  const supabase = getBrowserClient()
+                  const { error: delErr } = await supabase.from('marks').delete().eq('id', markId)
+                  if (delErr) {
+                    setError(delErr.message)
+                    setSaving(false)
+                    setShowDeleteConfirm(false)
+                  } else {
+                    router.push('/dashboard/marks')
+                  }
+                }}
+                loading={saving}
+                className="flex-1 !bg-red-600 hover:!bg-red-700"
+                size="lg"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reason modal */}
       {showReasonModal && (
