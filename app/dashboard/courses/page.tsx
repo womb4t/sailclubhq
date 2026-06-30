@@ -69,7 +69,7 @@ export default function CoursesPage() {
       ) : (
         <div className="space-y-3">
           {templates.map((t) => (
-            <Link key={t.id} href={`/courses/${t.id}`}>
+            <Link key={t.id} href={`/dashboard/courses/${t.id}`}>
               <Card className="hover:border-blue-300 hover:shadow-md transition-all">
                 <div className="flex items-start justify-between">
                   <div>

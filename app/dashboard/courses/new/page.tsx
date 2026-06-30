@@ -7,6 +7,7 @@ import { getBrowserClient } from '@/lib/supabase/browser'
 import { useAuth } from '@/context/AuthContext'
 import type { Mark, RoundingSide } from '@/types/database'
 import type { BuilderMode, CourseLeg, LinePoint } from '@/components/map/CourseBuilderMap'
+import { haversineNm } from '@/components/map/CourseBuilderMap'
 
 // Dynamic import — Leaflet requires browser
 const CourseBuilderMap = dynamic(() => import('@/components/map/CourseBuilderMap'), {
@@ -347,6 +348,35 @@ export default function NewCoursePage() {
   const finishDecided = finishAtStart !== null
   const canSave = courseName.trim().length > 0 && hasLegs && finishDecided
 
+  // Calculate total course distance in nautical miles
+  const courseDistanceNm = (() => {
+    let total = 0
+    // Start line midpoint to first leg
+    if (startLine.length === 2 && legs.length > 0) {
+      const smLat = (startLine[0].lat + startLine[1].lat) / 2
+      const smLng = (startLine[0].lng + startLine[1].lng) / 2
+      total += haversineNm(smLat, smLng, legs[0].lat, legs[0].lng)
+    }
+    // Between legs
+    for (let i = 0; i < legs.length - 1; i++) {
+      total += haversineNm(legs[i].lat, legs[i].lng, legs[i + 1].lat, legs[i + 1].lng)
+    }
+    // Last leg to finish
+    if (legs.length > 0) {
+      const effectiveFinish = finishAtStart === true
+        ? (startLine.length === 2 ? startLine : null)
+        : (finishLine && finishLine.length === 2 ? finishLine : null)
+      if (effectiveFinish) {
+        const fmLat = (effectiveFinish[0].lat + effectiveFinish[1].lat) / 2
+        const fmLng = (effectiveFinish[0].lng + effectiveFinish[1].lng) / 2
+        total += haversineNm(legs[legs.length - 1].lat, legs[legs.length - 1].lng, fmLat, fmLng)
+      }
+    }
+    // Multiply by laps
+    const lapCount = laps ? parseInt(laps) : 1
+    return total * (lapCount > 0 ? lapCount : 1)
+  })()
+
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
     // Full-viewport layout — override dashboard's max-w-3xl container
@@ -619,6 +649,11 @@ export default function NewCoursePage() {
           <div className={`text-xs px-2 py-1 rounded-md font-medium ${hasLegs ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
             {hasLegs ? `✓ ${legs.length} legs` : '○ Legs'}
           </div>
+          {courseDistanceNm > 0 && (
+            <div className="text-xs px-2 py-1 rounded-md font-medium bg-blue-600 text-white">
+              📏 {courseDistanceNm.toFixed(2)} nm
+            </div>
+          )}
           <div className={`text-xs px-2 py-1 rounded-md font-medium ${(finishAtStart === true && startDone) || (finishLine && finishLine.length === 2) ? 'bg-green-600 text-white' : finishAtStart === null ? 'bg-amber-200 text-amber-700' : 'bg-gray-200 text-gray-500'}`}>
             {(finishAtStart === true && startDone) || (finishLine && finishLine.length === 2)
               ? (finishAtStart === true ? '✓ Start / Finish' : '✓ Finish')
@@ -695,6 +730,22 @@ export default function NewCoursePage() {
                   />
                 </div>
               </div>
+
+              {/* Distance display */}
+              {courseDistanceNm > 0 && (
+                <div className="bg-gray-50 rounded-xl p-3 flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Total distance</span>
+                  <div className="text-right">
+                    <span className="text-lg font-bold text-blue-700">{courseDistanceNm.toFixed(2)}</span>
+                    <span className="text-sm text-gray-500 ml-1">nm</span>
+                    {laps && parseInt(laps) > 1 && (
+                      <div className="text-xs text-gray-400">
+                        {(courseDistanceNm / (parseInt(laps) || 1)).toFixed(2)} nm per lap × {laps}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Finish line options */}
               <div className="bg-blue-50 rounded-xl p-3">
