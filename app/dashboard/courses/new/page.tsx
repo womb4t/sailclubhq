@@ -275,6 +275,11 @@ export default function NewCoursePage() {
     if (!courseName.trim()) { setSaveError('Course name is required'); return }
     if (!clubId) { setSaveError('No club found'); return }
 
+    // Default to finish-at-start if not explicitly decided
+    if (finishAtStart === null) {
+      setFinishAtStart(true)
+    }
+
     setSaveError('')
     setSaving(true)
 
@@ -345,8 +350,7 @@ export default function NewCoursePage() {
   const currentModeInfo = MODES.find(m => m.id === mode)!
   const startDone = startLine.length === 2
   const hasLegs = legs.length > 0
-  const finishDecided = finishAtStart !== null
-  const canSave = courseName.trim().length > 0 && hasLegs && finishDecided
+  const canSave = courseName.trim().length > 0 && hasLegs
 
   // Calculate total course distance in nautical miles
   const courseDistanceNm = (() => {
