@@ -397,7 +397,7 @@ export default function NewCoursePage() {
           onClick={() => { setPanelOpen(true); setMode('review') }}
           className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg"
         >
-          Details
+          ⚙ Settings
         </button>
       </div>
 
@@ -576,8 +576,36 @@ export default function NewCoursePage() {
 
         {/* Info panel — fixed at bottom of map */}
         {(hasLegs || startDone) && (
-          <div className="absolute bottom-32 left-3 right-3 z-[1000] bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 px-3 py-2">
-            <div className="flex items-center justify-between gap-3">
+          <div className="absolute bottom-32 left-3 right-3 z-[1000] bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            {/* Course name + save row */}
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
+              <input
+                value={courseName}
+                onChange={(e) => setCourseName(e.target.value)}
+                placeholder="Course name…"
+                className="flex-1 text-sm font-medium text-gray-900 bg-transparent border-none outline-none placeholder:text-gray-300"
+              />
+              <button
+                onClick={() => setPanelOpen(true)}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium shrink-0"
+              >
+                More ›
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={!canSave || saving}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-white shrink-0 transition-colors ${
+                  canSave && !saving
+                    ? 'bg-blue-600 hover:bg-blue-700 active:bg-blue-800'
+                    : 'bg-gray-300 cursor-not-allowed'
+                }`}
+              >
+                {saving ? 'Saving…' : '✔ Save'}
+              </button>
+            </div>
+
+            {/* Stats row */}
+            <div className="flex items-center justify-between gap-3 px-3 py-2">
               {/* Legs count */}
               <div className="text-center">
                 <div className="text-lg font-bold text-gray-800">{legs.length}</div>
@@ -623,6 +651,13 @@ export default function NewCoursePage() {
                 <div className="text-[10px] text-gray-400 uppercase tracking-wide">Finish</div>
               </div>
             </div>
+
+            {/* Save error */}
+            {saveError && (
+              <div className="px-3 py-1.5 bg-red-50 text-red-600 text-xs border-t border-red-100">
+                {saveError}
+              </div>
+            )}
           </div>
         )}
 
