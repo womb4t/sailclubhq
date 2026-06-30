@@ -49,8 +49,7 @@ export default function SettingsPage() {
   const [editingSeries, setEditingSeries] = useState<string | null>(null)
   const [editSeriesName, setEditSeriesName] = useState('')
   const [editSeriesDesc, setEditSeriesDesc] = useState('')
-  const [editSeriesArchiveDays, setEditSeriesArchiveDays] = useState('30')
-  const [newSeriesArchiveDays, setNewSeriesArchiveDays] = useState('365')
+
   const [deleteSeries, setDeleteSeries] = useState<SeriesData | null>(null)
   const [seriesError, setSeriesError] = useState('')
 
@@ -112,7 +111,7 @@ export default function SettingsPage() {
         club_id: club.id,
         name: newSeriesName.trim(),
         description: newSeriesDesc.trim() || null,
-        archive_after_days: parseInt(newSeriesArchiveDays) || 365,
+
       })
       .select()
       .single()
@@ -122,7 +121,6 @@ export default function SettingsPage() {
       setSeriesList(prev => [...prev, data as SeriesData].sort((a, b) => a.name.localeCompare(b.name)))
       setNewSeriesName('')
       setNewSeriesDesc('')
-      setNewSeriesArchiveDays('30')
     }
     setAddingSeries(false)
   }
@@ -135,13 +133,12 @@ export default function SettingsPage() {
       .update({
         name: editSeriesName.trim(),
         description: editSeriesDesc.trim() || null,
-        archive_after_days: parseInt(editSeriesArchiveDays) || 365,
       })
       .eq('id', id)
     if (err) {
       setSeriesError(err.message)
     } else {
-      setSeriesList(prev => prev.map(s => s.id === id ? { ...s, name: editSeriesName.trim(), description: editSeriesDesc.trim() || null, archive_after_days: parseInt(editSeriesArchiveDays) || 365 } : s))
+      setSeriesList(prev => prev.map(s => s.id === id ? { ...s, name: editSeriesName.trim(), description: editSeriesDesc.trim() || null } : s))
       setEditingSeries(null)
     }
   }
@@ -310,20 +307,7 @@ export default function SettingsPage() {
                         placeholder="Description (optional)"
                         className="w-full text-xs rounded-md border border-gray-200 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">Archive after</span>
-                        <select
-                          value={editSeriesArchiveDays}
-                          onChange={e => setEditSeriesArchiveDays(e.target.value)}
-                          className="text-xs rounded-md border border-gray-200 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="30">30 days</option>
-                          <option value="90">90 days</option>
-                          <option value="180">6 months</option>
-                          <option value="365">12 months</option>
-                          <option value="-1">Manual only</option>
-                        </select>
-                      </div>
+
                       <div className="flex gap-2">
                         <button onClick={() => handleUpdateSeries(s.id)} className="text-xs font-medium text-blue-600 hover:text-blue-700">Save</button>
                         <button onClick={() => setEditingSeries(null)} className="text-xs font-medium text-gray-400 hover:text-gray-600">Cancel</button>
@@ -337,11 +321,11 @@ export default function SettingsPage() {
                           {!s.is_active && <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">Inactive</span>}
                         </div>
                         {s.description && <p className="text-xs text-gray-400 mt-0.5 truncate">{s.description}</p>}
-                        <p className="text-[10px] text-gray-400 mt-0.5">Archive: {s.archive_after_days === -1 ? 'Manual only' : s.archive_after_days === 365 ? '12 months' : s.archive_after_days === 180 ? '6 months' : s.archive_after_days === 90 ? '90 days' : s.archive_after_days === 30 ? '30 days' : `${s.archive_after_days ?? 365} days`}</p>
+
                       </div>
                       <div className="flex items-center gap-1.5 ml-3 shrink-0">
                         <button
-                          onClick={() => { setEditingSeries(s.id); setEditSeriesName(s.name); setEditSeriesDesc(s.description ?? ''); setEditSeriesArchiveDays(String(s.archive_after_days ?? 365)) }}
+                          onClick={() => { setEditingSeries(s.id); setEditSeriesName(s.name); setEditSeriesDesc(s.description ?? '') }}
                           className="text-xs font-medium text-blue-600 hover:text-blue-700 px-1.5 py-1 rounded hover:bg-blue-50"
                         >Edit</button>
                         <button
@@ -376,20 +360,7 @@ export default function SettingsPage() {
               placeholder="Description (optional)"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Archive completed races after</span>
-              <select
-                value={newSeriesArchiveDays}
-                onChange={e => setNewSeriesArchiveDays(e.target.value)}
-                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="30">30 days</option>
-                <option value="90">90 days</option>
-                <option value="180">6 months</option>
-                <option value="365">12 months</option>
-                <option value="-1">Manual only</option>
-              </select>
-            </div>
+            <p className="text-xs text-gray-400">Completed races auto-archive after 18 months</p>
             {seriesError && <p className="text-xs text-red-600">{seriesError}</p>}
             <Button
               type="button"
