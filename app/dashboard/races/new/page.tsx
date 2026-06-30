@@ -34,6 +34,35 @@ function generateRaceName(date: string, time: string): string {
   return `${dayName} ${dayNum} ${monthName} Race`
 }
 
+/** Add `mins` minutes to a HH:MM string, returns HH:MM */
+function addMinutes(time: string, mins: number): string {
+  const [h, m] = time.split(':').map(Number)
+  const total = h * 60 + m + mins
+  const hh = Math.floor(total / 60) % 24
+  const mm = total % 60
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+}
+
+interface StartClass {
+  id: string // local only (not DB id)
+  name: string
+  class_flag: string
+  prep_flag: 'P' | 'I' | 'U' | 'Black'
+  start_time: string // HH:MM
+  sequence_warning_mins: number
+}
+
+function makeDefaultClass(startTime: string): StartClass {
+  return {
+    id: crypto.randomUUID(),
+    name: 'Fleet',
+    class_flag: '',
+    prep_flag: 'P',
+    start_time: startTime || '10:00',
+    sequence_warning_mins: 5,
+  }
+}
+
 interface CourseWithLegs extends CourseTemplate {
   legCount: number
 }
@@ -62,12 +91,39 @@ export default function NewRacePage() {
   const [safetyInfo, setSafetyInfo] = useState('')
   const [notes, setNotes] = useState('')
 
+  // Start classes state
+  const [startClasses, setStartClasses] = useState<StartClass[]>([])
+
   // Auto-generate name when date or time changes (unless manually edited)
   useEffect(() => {
     if (!nameManuallyEdited) {
       setName(generateRaceName(raceDate, startTime))
     }
   }, [raceDate, startTime, nameManuallyEdited])
+
+  // Initialise start classes once we have a start time
+  useEffect(() => {
+    if (startTime && startClasses.length === 0) {
+      setStartClasses([makeDefaultClass(startTime)])
+    }
+  }, [startTime]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When start time changes, recalculate all class start times maintaining intervals
+  useEffect(() => {
+    if (!startTime || startClasses.length === 0) return
+    setStartClasses(prev => {
+      if (prev.length === 0) return prev
+      const newClasses = [...prev]
+      newClasses[0] = { ...newClasses[0], start_time: startTime }
+      for (let i = 1; i < newClasses.length; i++) {
+        const prevTime = newClasses[i - 1].start_time
+        // Calculate interval: how many mins after previous class
+        const interval = 5 // default RYA 5 min intervals
+        newClasses[i] = { ...newClasses[i], start_time: addMinutes(prevTime, interval) }
+      }
+      return newClasses
+    })
+  }, [startTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch club data
   useEffect(() => {
@@ -155,6 +211,29 @@ export default function NewRacePage() {
     setNameManuallyEdited(true)
   }, [])
 
+  function addStartClass() {
+    setStartClasses(prev => {
+      const lastTime = prev.length > 0 ? prev[prev.length - 1].start_time : (startTime || '10:00')
+      const newTime = addMinutes(lastTime, 5)
+      return [...prev, {
+        id: crypto.randomUUID(),
+        name: '',
+        class_flag: '',
+        prep_flag: 'P',
+        start_time: newTime,
+        sequence_warning_mins: 5,
+      }]
+    })
+  }
+
+  function updateStartClass(id: string, updates: Partial<StartClass>) {
+    setStartClasses(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c))
+  }
+
+  function removeStartClass(id: string) {
+    setStartClasses(prev => prev.filter(c => c.id !== id))
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim() || !raceDate) return
@@ -205,7 +284,36 @@ export default function NewRacePage() {
       return
     }
 
+    // Insert start classes
+    if (startClasses.length > 0 && inserted.id) {
+      const classRows = startClasses
+        .filter(c => c.name.trim())
+        .map(c => ({
+          race_id: inserted.id,
+          name: c.name.trim(),
+          class_flag: c.class_flag.trim() || null,
+          prep_flag: c.prep_flag,
+          start_time: `${raceDate}T${c.start_time}:00Z`,
+          sequence_warning_mins: c.sequence_warning_mins,
+        }))
+
+      if (classRows.length > 0) {
+        const { error: classError } = await supabase
+          .from('start_classes')
+          .insert(classRows)
+        if (classError) {
+          console.error('Failed to save start classes:', classError.message)
+          // Don't block navigation — race was created, classes can be added later
+        }
+      }
+    }
+
     router.push(`/dashboard/races/${inserted.id}`)
+  }
+
+  // Warning signal time = start_time - warning_mins
+  function warningTime(classStartTime: string, warnMins: number): string {
+    return addMinutes(classStartTime, -warnMins)
   }
 
   return (
@@ -345,6 +453,139 @@ export default function NewRacePage() {
               <p className="text-xs text-gray-400 mt-1.5">No course templates yet. You can add them in Courses.</p>
             )}
           </div>
+        </Card>
+
+        {/* START CLASSES */}
+        <Card>
+          <CardHeader>
+            <CardTitle>⏱ Start classes</CardTitle>
+            <Button type="button" variant="secondary" size="sm" onClick={addStartClass}>
+              + Add class
+            </Button>
+          </CardHeader>
+
+          {startClasses.length === 0 && (
+            <div className="text-center py-4">
+              <p className="text-sm text-gray-400">
+                {startTime
+                  ? 'No start classes yet. Click "+ Add class" to add one.'
+                  : 'Set a start time above, then add classes here.'}
+              </p>
+              {!startTime && (
+                <p className="text-xs text-gray-300 mt-1">Start classes use the race start time as the base.</p>
+              )}
+            </div>
+          )}
+
+          {startClasses.length > 0 && (
+            <div className="space-y-3">
+              {/* Preview: first warning signal */}
+              {startClasses[0] && (
+                <div className="text-xs text-gray-500 bg-blue-50 rounded-lg px-3 py-2 border border-blue-100">
+                  <span className="font-medium text-blue-700">First warning signal:</span>{' '}
+                  {warningTime(startClasses[0].start_time, startClasses[0].sequence_warning_mins)}
+                  {' '}({startClasses[0].sequence_warning_mins} min before {startClasses[0].start_time})
+                </div>
+              )}
+
+              {startClasses.map((cls, idx) => (
+                <div key={cls.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                      Class {idx + 1}
+                    </span>
+                    {startClasses.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeStartClass(cls.id)}
+                        className="text-gray-400 hover:text-red-500 text-lg leading-none transition-colors"
+                        aria-label="Remove class"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      label="Class name"
+                      value={cls.name}
+                      onChange={(e) => updateStartClass(cls.id, { name: e.target.value })}
+                      placeholder="e.g. Fast Handicap"
+                    />
+                    <Input
+                      label="Class flag"
+                      value={cls.class_flag}
+                      onChange={(e) => updateStartClass(cls.id, { class_flag: e.target.value })}
+                      placeholder="Optional"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Prep flag</label>
+                      <select
+                        value={cls.prep_flag}
+                        onChange={(e) => updateStartClass(cls.id, { prep_flag: e.target.value as StartClass['prep_flag'] })}
+                        className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="P">P</option>
+                        <option value="I">I</option>
+                        <option value="U">U</option>
+                        <option value="Black">Black</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Start time</label>
+                      <input
+                        type="time"
+                        value={cls.start_time}
+                        onChange={(e) => updateStartClass(cls.id, { start_time: e.target.value })}
+                        className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-700">Warning</label>
+                      <select
+                        value={cls.sequence_warning_mins}
+                        onChange={(e) => updateStartClass(cls.id, { sequence_warning_mins: parseInt(e.target.value) })}
+                        className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value={3}>3 min</option>
+                        <option value={4}>4 min</option>
+                        <option value={5}>5 min</option>
+                        <option value={10}>10 min</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Mini sequence preview for this class */}
+                  <div className="text-xs text-gray-500 pt-1 border-t border-gray-200 space-y-0.5">
+                    <div>
+                      <span className="font-mono">{warningTime(cls.start_time, cls.sequence_warning_mins)}</span>
+                      {' '}Warning signal
+                    </div>
+                    <div>
+                      <span className="font-mono">{addMinutes(warningTime(cls.start_time, cls.sequence_warning_mins), 1)}</span>
+                      {' '}Prep signal
+                    </div>
+                    <div className="font-medium text-gray-700">
+                      <span className="font-mono">{cls.start_time}</span>
+                      {' '}🚩 Start{cls.name ? ` — ${cls.name}` : ''}
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={addStartClass}
+                className="w-full text-sm text-blue-600 hover:text-blue-700 py-2 border-2 border-dashed border-blue-200 hover:border-blue-300 rounded-lg transition-colors"
+              >
+                + Add another class
+              </button>
+            </div>
+          )}
         </Card>
 
         {/* ON-THE-WATER */}

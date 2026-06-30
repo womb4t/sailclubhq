@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { getBrowserClient } from '@/lib/supabase/browser'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import type { Race, CourseTemplate } from '@/types/database'
@@ -20,12 +21,12 @@ const statusVariant: Record<string, 'default' | 'info' | 'success' | 'warning' |
 }
 
 const statusLabel: Record<string, string> = {
-  draft: 'Race Draft',
-  planned: 'Race Planned',
-  confirmed: 'Race Confirmed',
-  cancelled: 'Race Cancelled',
-  completed: 'Race Completed',
-  archived: 'Race Archived',
+  draft: 'Draft',
+  planned: 'Planned',
+  confirmed: 'Confirmed',
+  cancelled: 'Cancelled',
+  completed: 'Completed',
+  archived: 'Archived',
 }
 
 // Valid status transitions
@@ -62,6 +63,40 @@ function extractStartTime(notes: string | null): string | null {
   return match ? match[1] : null
 }
 
+/** Format a timestamptz to HH:MM */
+function formatTime(ts: string): string {
+  const d = new Date(ts)
+  return d.toISOString().slice(11, 16)
+}
+
+/** Add minutes to a HH:MM string */
+function addMinutes(time: string, mins: number): string {
+  const [h, m] = time.split(':').map(Number)
+  const total = h * 60 + m + mins
+  const hh = Math.floor(total / 60) % 24
+  const mm = total % 60
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+}
+
+interface StartClass {
+  id: string
+  race_id: string
+  name: string
+  class_flag: string | null
+  prep_flag: 'P' | 'I' | 'U' | 'Black'
+  start_time: string // timestamptz from DB
+  sequence_warning_mins: number
+}
+
+interface EditingClass {
+  id: string | null // null = new
+  name: string
+  class_flag: string
+  prep_flag: 'P' | 'I' | 'U' | 'Black'
+  start_time_hhmm: string
+  sequence_warning_mins: number
+}
+
 interface CourseWithLegs extends CourseTemplate {
   legCount: number
 }
@@ -80,6 +115,12 @@ export default function RaceDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [changingStatus, setChangingStatus] = useState(false)
+
+  // Start classes
+  const [startClasses, setStartClasses] = useState<StartClass[]>([])
+  const [editingClass, setEditingClass] = useState<EditingClass | null>(null)
+  const [savingClass, setSavingClass] = useState(false)
+  const [classError, setClassError] = useState('')
 
   useEffect(() => {
     if (!id || !user) return
@@ -115,6 +156,15 @@ export default function RaceDetailPage() {
           setCourse({ ...tpl, legCount: count ?? 0 })
         }
       }
+
+      // Fetch start classes
+      const { data: classes } = await supabase
+        .from('start_classes')
+        .select('*')
+        .eq('race_id', id)
+        .order('start_time', { ascending: true })
+
+      if (classes) setStartClasses(classes as StartClass[])
 
       setLoading(false)
     }
@@ -165,6 +215,127 @@ export default function RaceDetailPage() {
       return
     }
     router.push('/dashboard/races')
+  }
+
+  // Start class editing
+  function openAddClass() {
+    if (!race) return
+    const raceStartTime = extractStartTime(race.notes)
+    const lastClass = startClasses[startClasses.length - 1]
+    const defaultTime = lastClass
+      ? addMinutes(formatTime(lastClass.start_time), 5)
+      : (raceStartTime || '10:00')
+
+    setEditingClass({
+      id: null,
+      name: '',
+      class_flag: '',
+      prep_flag: 'P',
+      start_time_hhmm: defaultTime,
+      sequence_warning_mins: 5,
+    })
+    setClassError('')
+  }
+
+  function openEditClass(cls: StartClass) {
+    setEditingClass({
+      id: cls.id,
+      name: cls.name,
+      class_flag: cls.class_flag || '',
+      prep_flag: cls.prep_flag,
+      start_time_hhmm: formatTime(cls.start_time),
+      sequence_warning_mins: cls.sequence_warning_mins,
+    })
+    setClassError('')
+  }
+
+  async function saveClass() {
+    if (!editingClass || !race) return
+    if (!editingClass.name.trim()) {
+      setClassError('Class name is required')
+      return
+    }
+
+    setSavingClass(true)
+    setClassError('')
+    const supabase = getBrowserClient()
+
+    const raceDate = race.race_date
+    const startTimestamptz = `${raceDate}T${editingClass.start_time_hhmm}:00Z`
+
+    if (editingClass.id) {
+      // Update existing
+      const { error: err } = await supabase
+        .from('start_classes')
+        .update({
+          name: editingClass.name.trim(),
+          class_flag: editingClass.class_flag.trim() || null,
+          prep_flag: editingClass.prep_flag,
+          start_time: startTimestamptz,
+          sequence_warning_mins: editingClass.sequence_warning_mins,
+        })
+        .eq('id', editingClass.id)
+
+      if (err) {
+        setClassError(err.message)
+        setSavingClass(false)
+        return
+      }
+
+      setStartClasses(prev => prev.map(c =>
+        c.id === editingClass.id
+          ? {
+            ...c,
+            name: editingClass.name.trim(),
+            class_flag: editingClass.class_flag.trim() || null,
+            prep_flag: editingClass.prep_flag,
+            start_time: startTimestamptz,
+            sequence_warning_mins: editingClass.sequence_warning_mins,
+          }
+          : c
+      ).sort((a, b) => a.start_time.localeCompare(b.start_time)))
+    } else {
+      // Insert new
+      const { data: newClass, error: err } = await supabase
+        .from('start_classes')
+        .insert({
+          race_id: race.id,
+          name: editingClass.name.trim(),
+          class_flag: editingClass.class_flag.trim() || null,
+          prep_flag: editingClass.prep_flag,
+          start_time: startTimestamptz,
+          sequence_warning_mins: editingClass.sequence_warning_mins,
+        })
+        .select()
+        .single()
+
+      if (err) {
+        setClassError(err.message)
+        setSavingClass(false)
+        return
+      }
+
+      if (newClass) {
+        setStartClasses(prev =>
+          [...prev, newClass as StartClass].sort((a, b) => a.start_time.localeCompare(b.start_time))
+        )
+      }
+    }
+
+    setSavingClass(false)
+    setEditingClass(null)
+  }
+
+  async function deleteClass(classId: string) {
+    const supabase = getBrowserClient()
+    const { error: err } = await supabase
+      .from('start_classes')
+      .delete()
+      .eq('id', classId)
+
+    if (!err) {
+      setStartClasses(prev => prev.filter(c => c.id !== classId))
+    }
   }
 
   if (loading) {
@@ -273,6 +444,94 @@ export default function RaceDetailPage() {
         </Card>
       )}
 
+      {/* START SEQUENCE */}
+      <Card>
+        <CardHeader>
+          <CardTitle>⏱ Start sequence</CardTitle>
+          <Button type="button" variant="secondary" size="sm" onClick={openAddClass}>
+            + Add class
+          </Button>
+        </CardHeader>
+
+        {startClasses.length === 0 ? (
+          <div className="text-center py-6">
+            <p className="text-sm text-gray-400">No start classes defined yet.</p>
+            <button
+              type="button"
+              onClick={openAddClass}
+              className="mt-3 text-sm text-blue-600 hover:text-blue-700 py-2 px-4 border-2 border-dashed border-blue-200 hover:border-blue-300 rounded-lg transition-colors w-full"
+            >
+              + Add first class
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {startClasses.map((cls, idx) => {
+              const clsTime = formatTime(cls.start_time)
+              const warnTime = addMinutes(clsTime, -cls.sequence_warning_mins)
+              const prepTime = addMinutes(warnTime, 1)
+              const isFirst = idx === 0
+
+              return (
+                <div key={cls.id} className="rounded-lg border border-gray-200 overflow-hidden">
+                  {/* Header row */}
+                  <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-200">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-gray-900 text-sm">{cls.name}</span>
+                      {cls.class_flag && (
+                        <span className="text-xs text-gray-500 bg-white border border-gray-200 rounded px-1.5 py-0.5">
+                          🏴 {cls.class_flag}
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-400 bg-white border border-gray-200 rounded px-1.5 py-0.5">
+                        Prep: {cls.prep_flag}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => openEditClass(cls)}
+                        className="text-xs text-blue-600 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteClass(cls.id)}
+                        className="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Timeline */}
+                  <div className="px-3 py-2 space-y-1">
+                    {isFirst && (
+                      <div className="text-xs text-blue-600 font-medium mb-1.5">
+                        ── First start ──
+                      </div>
+                    )}
+                    <div className="flex items-baseline gap-3">
+                      <span className="font-mono text-sm font-medium text-gray-700 w-12 flex-shrink-0">{warnTime}</span>
+                      <span className="text-xs text-gray-500">🚩 Warning signal</span>
+                    </div>
+                    <div className="flex items-baseline gap-3">
+                      <span className="font-mono text-sm font-medium text-gray-700 w-12 flex-shrink-0">{prepTime}</span>
+                      <span className="text-xs text-gray-500">⚑ Prep signal</span>
+                    </div>
+                    <div className="flex items-baseline gap-3">
+                      <span className="font-mono text-sm font-semibold text-gray-900 w-12 flex-shrink-0">{clsTime}</span>
+                      <span className="text-xs font-medium text-gray-700">🏁 Start</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Card>
+
       {/* Competitor entry link */}
       <Card>
         <CardHeader>
@@ -357,6 +616,120 @@ export default function RaceDetailPage() {
                 onClick={handleDelete}
               >
                 Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit class modal */}
+      {editingClass && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">
+              {editingClass.id ? 'Edit class' : 'Add class'}
+            </h3>
+
+            <div className="space-y-3">
+              <Input
+                label="Class name"
+                value={editingClass.name}
+                onChange={(e) => setEditingClass(prev => prev ? { ...prev, name: e.target.value } : null)}
+                placeholder="e.g. Fast Handicap"
+                autoFocus
+              />
+
+              <Input
+                label="Class flag (optional)"
+                value={editingClass.class_flag}
+                onChange={(e) => setEditingClass(prev => prev ? { ...prev, class_flag: e.target.value } : null)}
+                placeholder="e.g. Class 1"
+              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Prep flag</label>
+                  <select
+                    value={editingClass.prep_flag}
+                    onChange={(e) => setEditingClass(prev => prev ? {
+                      ...prev,
+                      prep_flag: e.target.value as 'P' | 'I' | 'U' | 'Black'
+                    } : null)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="P">P</option>
+                    <option value="I">I</option>
+                    <option value="U">U</option>
+                    <option value="Black">Black</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Warning</label>
+                  <select
+                    value={editingClass.sequence_warning_mins}
+                    onChange={(e) => setEditingClass(prev => prev ? {
+                      ...prev,
+                      sequence_warning_mins: parseInt(e.target.value)
+                    } : null)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value={3}>3 min</option>
+                    <option value={4}>4 min</option>
+                    <option value={5}>5 min</option>
+                    <option value={10}>10 min</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700">Start time</label>
+                <input
+                  type="time"
+                  value={editingClass.start_time_hhmm}
+                  onChange={(e) => setEditingClass(prev => prev ? { ...prev, start_time_hhmm: e.target.value } : null)}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Mini preview */}
+              {editingClass.start_time_hhmm && (
+                <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 space-y-0.5 border border-gray-200">
+                  <div>
+                    <span className="font-mono">{addMinutes(editingClass.start_time_hhmm, -editingClass.sequence_warning_mins)}</span>
+                    {' '}Warning signal
+                  </div>
+                  <div>
+                    <span className="font-mono">{addMinutes(editingClass.start_time_hhmm, -editingClass.sequence_warning_mins + 1)}</span>
+                    {' '}Prep signal
+                  </div>
+                  <div className="font-medium text-gray-700">
+                    <span className="font-mono">{editingClass.start_time_hhmm}</span>
+                    {' '}🏁 Start
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {classError && (
+              <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{classError}</p>
+            )}
+
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => { setEditingClass(null); setClassError('') }}
+                disabled={savingClass}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                loading={savingClass}
+                onClick={saveClass}
+              >
+                {editingClass.id ? 'Save changes' : 'Add class'}
               </Button>
             </div>
           </div>
