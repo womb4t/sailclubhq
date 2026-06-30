@@ -35,8 +35,9 @@ interface CourseBuilderMapProps {
   catalogueMarks: Mark[]
   legs: CourseLeg[]
   startLine: LinePoint[]
+  startLineLabels?: string[]
   finishLine: LinePoint[] | null
-  finishAtStart: boolean
+  finishAtStart: boolean | null
   onMapClick: (lat: number, lng: number) => void
   onCatalogueMarkClick: (mark: Mark) => void
   onLegClick: (legIndex: number) => void
@@ -86,6 +87,7 @@ export default function CourseBuilderMap({
   catalogueMarks,
   legs,
   startLine,
+  startLineLabels = [],
   finishLine,
   finishAtStart,
   onMapClick,
@@ -199,15 +201,23 @@ export default function CourseBuilderMap({
     if (!layer) return
     layer.clearLayers()
 
-    startLine.forEach((pt) => {
-      L.circleMarker([pt.lat, pt.lng], {
-        radius: 6,
-        fillColor: '#f59e0b',
+    startLine.forEach((pt, idx) => {
+      const label = startLineLabels[idx]
+      const isCommittee = label === 'Committee Boat'
+      const marker = L.circleMarker([pt.lat, pt.lng], {
+        radius: isCommittee ? 8 : 6,
+        fillColor: isCommittee ? '#92400e' : '#f59e0b',
         fillOpacity: 0.95,
         color: '#fff',
         weight: 2,
         interactive: false,
-      }).addTo(layer)
+      })
+      if (label) {
+        marker.bindTooltip(`<strong>${label}</strong>`, {
+          direction: 'top', offset: [0, -10], permanent: false,
+        })
+      }
+      marker.addTo(layer)
     })
 
     if (startLine.length === 2) {
@@ -219,10 +229,12 @@ export default function CourseBuilderMap({
         interactive: false,
       }).addTo(layer)
 
+      // Label: "START / FINISH" if shared, otherwise just "START"
+      const isShared = finishAtStart === true
       const mp = midpoint(startLine[0], startLine[1])
-      L.marker(mp, { icon: makeLineLabel('START', '#d97706'), interactive: false }).addTo(layer)
+      L.marker(mp, { icon: makeLineLabel(isShared ? 'START / FINISH' : 'START', isShared ? '#7c3aed' : '#d97706'), interactive: false }).addTo(layer)
     }
-  }, [startLine])
+  }, [startLine, startLineLabels, finishAtStart])
 
   // ─── Course legs ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -332,13 +344,12 @@ export default function CourseBuilderMap({
     if (!layer) return
     layer.clearLayers()
 
-    const effectiveFinish = finishAtStart
-      ? (startLine.length === 2 ? startLine : null)
-      : finishLine
+    // If finish is at start, the start line layer already shows "START / FINISH" label
+    // Only draw a separate finish line if finishAtStart is false
+    if (finishAtStart === true) return
+    if (!finishLine || finishLine.length < 2) return
 
-    if (!effectiveFinish || effectiveFinish.length < 2) return
-
-    const [a, b] = effectiveFinish
+    const [a, b] = finishLine
     L.circleMarker([a.lat, a.lng], {
       radius: 6, fillColor: '#2563eb', fillOpacity: 0.95, color: '#fff', weight: 2, interactive: false,
     }).addTo(layer)
@@ -347,7 +358,7 @@ export default function CourseBuilderMap({
     }).addTo(layer)
 
     L.polyline([[a.lat, a.lng], [b.lat, b.lng]], {
-      color: '#2563eb', weight: 4, opacity: 0.85, dashArray: finishAtStart ? '4,4' : undefined, interactive: false,
+      color: '#2563eb', weight: 4, opacity: 0.85, interactive: false,
     }).addTo(layer)
 
     const mp = midpoint(a, b)

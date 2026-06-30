@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useId } from 'react'
+import { useState, useEffect, useCallback, useId, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import { getBrowserClient } from '@/lib/supabase/browser'
@@ -52,9 +52,12 @@ export default function NewCoursePage() {
 
   // Builder state
   const [mode, setMode] = useState<BuilderMode>('setStart')
+  const [startLineMode, setStartLineMode] = useState<'tap' | 'mark' | 'committee'>('tap') // how we're setting start line points
   const [startLine, setStartLine] = useState<LinePoint[]>([])
+  const [startLineLabels, setStartLineLabels] = useState<string[]>([]) // e.g. ['Pin End', 'Committee Boat']
   const [finishLine, setFinishLine] = useState<LinePoint[] | null>(null)
-  const [finishAtStart, setFinishAtStart] = useState(true)
+  const [finishAtStart, setFinishAtStart] = useState<boolean | null>(null) // null = not yet decided
+  const [showFinishPrompt, setShowFinishPrompt] = useState(false)
   const [legs, setLegs] = useState<CourseLeg[]>([])
   const [tempMarkCount, setTempMarkCount] = useState(0)
 
@@ -69,6 +72,7 @@ export default function NewCoursePage() {
 
   // Coord display
   const [cursorCoord, setCursorCoord] = useState<string>('')
+  const mapCenterRef = useRef<[number, number]>([51.35, 0.73])
 
   // Undo history — stores actions that can be reversed
   type UndoAction =
@@ -95,7 +99,11 @@ export default function NewCoursePage() {
       }
       case 'startPoint': {
         setStartLine(prev => prev.slice(0, -1))
-        if (mode === 'addLegs' && startLine.length <= 2) setMode('setStart')
+        setStartLineLabels(prev => prev.slice(0, -1))
+        if (mode === 'addLegs' && startLine.length <= 2) {
+          setMode('setStart')
+          setFinishAtStart(null) // reset finish decision
+        }
         break
       }
       case 'finishPoint': {
@@ -146,6 +154,12 @@ export default function NewCoursePage() {
         if (prev.length >= 2) return [{ lat, lng }]
         return [...prev, { lat, lng }]
       })
+      // Label based on current sub-mode
+      const label = startLineMode === 'committee' ? 'Committee Boat' : `Point ${startLine.length + 1}`
+      setStartLineLabels(prev => {
+        if (prev.length >= 2) return [label]
+        return [...prev, label]
+      })
       pushUndo({ type: 'startPoint' })
     } else if (mode === 'setFinish') {
       setFinishLine(prev => {
@@ -172,11 +186,11 @@ export default function NewCoursePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, tempMarkCount, uniqueId])
 
-  // Auto-advance mode when start line is complete
+  // When start line is complete, ask about finish line
   useEffect(() => {
     if (startLine.length === 2 && mode === 'setStart') {
-      // Small delay so user sees the line drawn
-      const t = setTimeout(() => setMode('addLegs'), 300)
+      // Show the finish line prompt instead of auto-advancing
+      const t = setTimeout(() => setShowFinishPrompt(true), 400)
       return () => clearTimeout(t)
     }
   }, [startLine, mode])
@@ -190,6 +204,14 @@ export default function NewCoursePage() {
   }, [finishLine, mode])
 
   const handleCatalogueMarkClick = useCallback((mark: Mark) => {
+    // In setStart mode, allow using a catalogue mark as a start line point
+    if (mode === 'setStart') {
+      if (startLine.length >= 2) return // already complete
+      setStartLine(prev => [...prev, { lat: mark.lat, lng: mark.lon }])
+      setStartLineLabels(prev => [...prev, mark.name])
+      pushUndo({ type: 'startPoint' })
+      return
+    }
     if (mode !== 'addLegs') return
     const newLeg: CourseLeg = {
       id: mark.id,
@@ -202,7 +224,7 @@ export default function NewCoursePage() {
     }
     setLegs(prev => [...prev, newLeg])
     pushUndo({ type: 'addLeg' })
-  }, [mode])
+  }, [mode, startLine])
 
   const handleLegClick = useCallback((index: number) => {
     // Toggle rounding side when tapping a leg marker on the map
@@ -319,7 +341,8 @@ export default function NewCoursePage() {
   const currentModeInfo = MODES.find(m => m.id === mode)!
   const startDone = startLine.length === 2
   const hasLegs = legs.length > 0
-  const canSave = courseName.trim().length > 0 && hasLegs
+  const finishDecided = finishAtStart !== null
+  const canSave = courseName.trim().length > 0 && hasLegs && finishDecided
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
@@ -352,6 +375,7 @@ export default function NewCoursePage() {
           catalogueMarks={catalogueMarks}
           legs={legs}
           startLine={startLine}
+          startLineLabels={startLineLabels}
           finishLine={finishLine}
           finishAtStart={finishAtStart}
           onMapClick={handleMapClick}
@@ -374,15 +398,97 @@ export default function NewCoursePage() {
         )}
 
         {/* Mode hint banner */}
-        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-[1000] bg-black/70 text-white text-xs px-4 py-2 rounded-full pointer-events-none max-w-xs text-center whitespace-nowrap">
-          {currentModeInfo.icon} {currentModeInfo.hint}
-          {mode === 'setStart' && startLine.length === 1 && (
-            <span className="ml-1 text-yellow-300">(tap 2nd point)</span>
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-[1000] bg-black/70 text-white text-xs px-4 py-2 rounded-full pointer-events-none max-w-xs text-center">
+          {mode === 'setStart' && startLine.length === 0 && (
+            <span>⚓ Tap a point, mark, or use buttons below to set the start line</span>
           )}
-          {mode === 'setFinish' && finishLine && finishLine.length === 1 && (
-            <span className="ml-1 text-yellow-300">(tap 2nd point)</span>
+          {mode === 'setStart' && startLine.length === 1 && (
+            <span>⚓ Now set the 2nd end — <span className="text-yellow-300">tap map, mark, or use Committee Boat</span></span>
+          )}
+          {mode === 'addLegs' && (
+            <span>🔵 Tap marks to build the course, or tap open water for a temp mark</span>
+          )}
+          {mode === 'setFinish' && (
+            <span>🏁 Tap 2 points for the finish line{finishLine && finishLine.length === 1 ? <span className="text-yellow-300"> (tap 2nd point)</span> : ''}</span>
+          )}
+          {mode === 'review' && (
+            <span>📋 Review your course and save</span>
           )}
         </div>
+
+        {/* Start line helper buttons — visible in setStart mode */}
+        {mode === 'setStart' && (
+          <div className="absolute top-28 left-1/2 -translate-x-1/2 z-[1000] flex gap-2">
+            <button
+              onClick={() => {
+                // Drop committee boat at map center
+                if (!mapCenterRef.current || startLine.length >= 2) return
+                // We'll use the last clicked coord or map interaction
+                setStartLineMode('committee')
+              }}
+              className={`px-3 py-2 rounded-xl text-xs font-medium shadow-lg transition-all ${
+                startLineMode === 'committee'
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              🚢 Committee Boat
+            </button>
+            <button
+              onClick={() => setStartLineMode('mark')}
+              className={`px-3 py-2 rounded-xl text-xs font-medium shadow-lg transition-all ${
+                startLineMode === 'mark'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              📍 Use a Mark
+            </button>
+            <button
+              onClick={() => setStartLineMode('tap')}
+              className={`px-3 py-2 rounded-xl text-xs font-medium shadow-lg transition-all ${
+                startLineMode === 'tap'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              👆 Tap Point
+            </button>
+          </div>
+        )}
+
+        {/* Finish line prompt — appears after start line is set */}
+        {showFinishPrompt && (
+          <div className="absolute inset-0 z-[1100] flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/50" />
+            <div className="relative bg-white rounded-2xl shadow-2xl p-5 mx-6 max-w-sm w-full">
+              <h3 className="font-semibold text-gray-900 text-base mb-2">Finish line</h3>
+              <p className="text-sm text-gray-600 mb-4">Do you want the start line to also be the finish line?</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setFinishAtStart(true)
+                    setShowFinishPrompt(false)
+                    setMode('addLegs')
+                  }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  ✅ Yes — Start / Finish
+                </button>
+                <button
+                  onClick={() => {
+                    setFinishAtStart(false)
+                    setShowFinishPrompt(false)
+                    setMode('addLegs')
+                  }}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
+                >
+                  No — set separately
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Undo + Send to Finish — secondary action row */}
         <div className="absolute bottom-20 left-0 right-0 flex justify-center gap-2 px-4 z-[1000]">
@@ -400,10 +506,17 @@ export default function NewCoursePage() {
           {mode === 'addLegs' && legs.length >= 1 && startLine.length === 2 && (
             <button
               onClick={() => {
-                // Close course building — switch to review with finish at start
-                setFinishAtStart(true)
-                setMode('review')
-                setPanelOpen(true)
+                if (finishAtStart === null) {
+                  // Haven't decided yet — ask
+                  setShowFinishPrompt(true)
+                } else if (finishAtStart) {
+                  // Finish is at start — go straight to review
+                  setMode('review')
+                  setPanelOpen(true)
+                } else {
+                  // Separate finish — switch to set finish mode
+                  setMode('setFinish')
+                }
               }}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium shadow-lg bg-amber-500 text-white hover:bg-amber-600 transition-all"
             >
@@ -452,8 +565,10 @@ export default function NewCoursePage() {
           <div className={`text-xs px-2 py-1 rounded-md font-medium ${hasLegs ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
             {hasLegs ? `✓ ${legs.length} legs` : '○ Legs'}
           </div>
-          <div className={`text-xs px-2 py-1 rounded-md font-medium ${(finishAtStart && startDone) || (finishLine && finishLine.length === 2) ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
-            {(finishAtStart && startDone) || (finishLine && finishLine.length === 2) ? '✓ Finish' : '○ Finish'}
+          <div className={`text-xs px-2 py-1 rounded-md font-medium ${(finishAtStart === true && startDone) || (finishLine && finishLine.length === 2) ? 'bg-green-600 text-white' : finishAtStart === null ? 'bg-amber-200 text-amber-700' : 'bg-gray-200 text-gray-500'}`}>
+            {(finishAtStart === true && startDone) || (finishLine && finishLine.length === 2)
+              ? (finishAtStart === true ? '✓ Start / Finish' : '✓ Finish')
+              : finishAtStart === null ? '? Finish' : '○ Finish'}
           </div>
         </div>
       </div>
@@ -533,7 +648,7 @@ export default function NewCoursePage() {
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={finishAtStart}
+                    checked={finishAtStart ?? false}
                     onChange={(e) => {
                       setFinishAtStart(e.target.checked)
                       if (!e.target.checked) {
@@ -543,7 +658,7 @@ export default function NewCoursePage() {
                     }}
                     className="w-4 h-4 text-blue-600 rounded"
                   />
-                  <span className="text-sm text-gray-700">Finish at start line (default)</span>
+                  <span className="text-sm text-gray-700">Finish at start line</span>
                 </label>
                 {!finishAtStart && (
                   <button
