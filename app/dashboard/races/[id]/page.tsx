@@ -12,16 +12,43 @@ import type { Race, CourseTemplate } from '@/types/database'
 
 const statusVariant: Record<string, 'default' | 'info' | 'success' | 'warning' | 'danger'> = {
   draft: 'default',
-  open: 'info',
-  active: 'success',
-  finished: 'warning',
+  planned: 'info',
+  confirmed: 'success',
+  cancelled: 'danger',
+  completed: 'warning',
+  archived: 'default',
 }
 
 const statusLabel: Record<string, string> = {
   draft: 'Draft',
-  open: 'Open',
-  active: 'Racing',
-  finished: 'Finished',
+  planned: 'Planned',
+  confirmed: 'Confirmed',
+  cancelled: 'Cancelled',
+  completed: 'Completed',
+  archived: 'Archived',
+}
+
+// Valid status transitions
+const statusTransitions: Record<string, { label: string; to: string; style: string }[]> = {
+  draft: [
+    { label: 'Publish', to: 'planned', style: 'bg-blue-600 hover:bg-blue-700 text-white' },
+  ],
+  planned: [
+    { label: 'Confirm', to: 'confirmed', style: 'bg-green-600 hover:bg-green-700 text-white' },
+    { label: 'Cancel', to: 'cancelled', style: 'bg-red-100 hover:bg-red-200 text-red-700' },
+    { label: 'Back to Draft', to: 'draft', style: 'bg-gray-100 hover:bg-gray-200 text-gray-700' },
+  ],
+  confirmed: [
+    { label: 'Complete', to: 'completed', style: 'bg-amber-600 hover:bg-amber-700 text-white' },
+    { label: 'Cancel', to: 'cancelled', style: 'bg-red-100 hover:bg-red-200 text-red-700' },
+  ],
+  cancelled: [
+    { label: 'Reopen as Planned', to: 'planned', style: 'bg-blue-100 hover:bg-blue-200 text-blue-700' },
+  ],
+  completed: [
+    { label: 'Archive', to: 'archived', style: 'bg-gray-100 hover:bg-gray-200 text-gray-700' },
+  ],
+  archived: [],
 }
 
 function formatDate(dateStr: string): string {
@@ -52,6 +79,7 @@ export default function RaceDetailPage() {
   const [copied, setCopied] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [changingStatus, setChangingStatus] = useState(false)
 
   useEffect(() => {
     if (!id || !user) return
@@ -103,6 +131,22 @@ export default function RaceDetailPage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
+  }
+
+  async function handleStatusChange(newStatus: string) {
+    if (!race) return
+    setChangingStatus(true)
+    const supabase = getBrowserClient()
+    const { error: err } = await supabase
+      .from('races')
+      .update({ status: newStatus })
+      .eq('id', race.id)
+    if (err) {
+      setError(err.message)
+    } else {
+      setRace({ ...race, status: newStatus as Race['status'] })
+    }
+    setChangingStatus(false)
   }
 
   async function handleDelete() {
@@ -180,6 +224,25 @@ export default function RaceDetailPage() {
           </Button>
         </div>
       </div>
+
+      {/* Status actions */}
+      {(statusTransitions[race.status] ?? []).length > 0 && (
+        <Card>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-gray-500 mr-1">Status:</span>
+            {(statusTransitions[race.status] ?? []).map(t => (
+              <button
+                key={t.to}
+                onClick={() => handleStatusChange(t.to)}
+                disabled={changingStatus}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${t.style} ${changingStatus ? 'opacity-50' : ''}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Course info */}
       {course && (

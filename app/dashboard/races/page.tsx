@@ -9,16 +9,20 @@ import type { Race } from '@/types/database'
 
 const statusVariant: Record<string, 'default' | 'info' | 'success' | 'warning' | 'danger'> = {
   draft: 'default',
-  open: 'info',
-  active: 'success',
-  finished: 'warning',
+  planned: 'info',
+  confirmed: 'success',
+  cancelled: 'danger',
+  completed: 'warning',
+  archived: 'default',
 }
 
 const statusLabel: Record<string, string> = {
   draft: 'Draft',
-  open: 'Open',
-  active: 'Racing',
-  finished: 'Finished',
+  planned: 'Planned',
+  confirmed: 'Confirmed',
+  cancelled: 'Cancelled',
+  completed: 'Completed',
+  archived: 'Archived',
 }
 
 function formatDate(dateStr: string): string {
@@ -74,9 +78,9 @@ export default function RacesPage() {
     fetchRaces()
   }
 
-  const activeRaces = races.filter((r) => r.status === 'active')
-  const upcomingRaces = races.filter((r) => r.status === 'open' || r.status === 'draft')
-  const pastRaces = races.filter((r) => r.status === 'finished')
+  const activeRaces = races.filter((r) => r.status === 'confirmed')
+  const upcomingRaces = races.filter((r) => r.status === 'planned' || r.status === 'draft')
+  const pastRaces = races.filter((r) => r.status === 'completed' || r.status === 'cancelled' || r.status === 'archived')
 
   if (loading) {
     return (
