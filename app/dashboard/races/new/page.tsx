@@ -109,6 +109,7 @@ export default function NewRacePage() {
       .from('races')
       .insert({
         club_id: profile.club_id,
+        created_by: user.id,
         name: name.trim(),
         race_number: raceNumber ? parseInt(raceNumber) : null,
         series: series.trim() || null,

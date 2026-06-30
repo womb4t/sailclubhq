@@ -29,7 +29,7 @@ function formatDate(dateStr: string): string {
 
 export function RaceCard({ race, entryCount }: RaceCardProps) {
   return (
-    <Link href={`/races/${race.id}`} className="block">
+    <Link href={`/dashboard/races/${race.id}`} className="block">
       <Card className="hover:border-blue-300 hover:shadow-md transition-all active:scale-[0.99]">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
