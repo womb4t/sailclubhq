@@ -1,28 +1,59 @@
+'use client'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import type { Race } from '@/types/database'
+import type { Race, Profile, Club } from '@/types/database'
 
-export default async function DashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+interface ProfileWithClub extends Profile {
+  clubs: Club | null
+}
 
-  // Fetch profile — may be null for brand new users
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*, clubs(*)')
-    .eq('id', user!.id)
-    .maybeSingle()
+export default function DashboardPage() {
+  const [profile, setProfile] = useState<ProfileWithClub | null>(null)
+  const [recentRaces, setRecentRaces] = useState<Race[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Fetch recent races
-  const { data: recentRaces } = await supabase
-    .from('races')
-    .select('*')
-    .order('race_date', { ascending: false })
-    .limit(3) as { data: Race[] | null }
+  useEffect(() => {
+    async function fetchData() {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) {
+        setLoading(false)
+        return
+      }
+
+      const [{ data: profileData }, { data: racesData }] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('*, clubs(*)')
+          .eq('id', session.user.id)
+          .maybeSingle(),
+        supabase
+          .from('races')
+          .select('*')
+          .order('race_date', { ascending: false })
+          .limit(3),
+      ])
+
+      setProfile(profileData as ProfileWithClub | null)
+      setRecentRaces((racesData as Race[]) ?? [])
+      setLoading(false)
+    }
+
+    fetchData()
+  }, [])
 
   const firstName = profile?.full_name?.split(' ')[0] ?? 'there'
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-gray-400 text-sm">Loading...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -30,7 +61,7 @@ export default async function DashboardPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Morning, {firstName} 👋</h1>
         <p className="text-sm text-gray-500 mt-1">
-          {profile?.clubs ? (profile.clubs as { name: string }).name : 'No club linked yet'}
+          {profile?.clubs ? (profile.clubs as Club).name : 'No club linked yet'}
         </p>
       </div>
 
@@ -63,7 +94,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Recent races */}
-      {recentRaces && recentRaces.length > 0 && (
+      {recentRaces.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Recent races</h2>
@@ -93,7 +124,7 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {(!recentRaces || recentRaces.length === 0) && (
+      {recentRaces.length === 0 && (
         <Card className="text-center py-10">
           <p className="text-gray-400 text-sm mb-4">No races yet. Ready to run your first one?</p>
           <Link href="/races/new">

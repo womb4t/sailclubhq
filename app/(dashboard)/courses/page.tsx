@@ -1,27 +1,46 @@
+'use client'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/client'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import type { CourseTemplate } from '@/types/database'
 
-export default async function CoursesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export default function CoursesPage() {
+  const [templates, setTemplates] = useState<CourseTemplate[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('club_id')
-    .eq('id', user!.id)
-    .single()
+  useEffect(() => {
+    async function fetchData() {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) { setLoading(false); return }
 
-  let templates: CourseTemplate[] = []
-  if (profile?.club_id) {
-    const { data } = await supabase
-      .from('course_templates')
-      .select('*')
-      .eq('club_id', profile.club_id)
-      .order('name')
-    templates = (data as CourseTemplate[]) ?? []
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('club_id')
+        .eq('id', session.user.id)
+        .maybeSingle()
+
+      if (profile?.club_id) {
+        const { data } = await supabase
+          .from('course_templates')
+          .select('*')
+          .eq('club_id', profile.club_id)
+          .order('name')
+        setTemplates((data as CourseTemplate[]) ?? [])
+      }
+      setLoading(false)
+    }
+    fetchData()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-gray-400 text-sm">Loading...</div>
+      </div>
+    )
   }
 
   return (

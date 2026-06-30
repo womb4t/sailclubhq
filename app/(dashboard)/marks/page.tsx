@@ -1,28 +1,47 @@
+'use client'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/client'
 import { MarkCard } from '@/components/marks/MarkCard'
 import { Button } from '@/components/ui/Button'
 import type { Mark } from '@/types/database'
 
-export default async function MarksPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export default function MarksPage() {
+  const [marks, setMarks] = useState<Mark[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('club_id')
-    .eq('id', user!.id)
-    .single()
+  useEffect(() => {
+    async function fetchData() {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) { setLoading(false); return }
 
-  let marks: Mark[] = []
-  if (profile?.club_id) {
-    const { data } = await supabase
-      .from('marks')
-      .select('*')
-      .eq('club_id', profile.club_id)
-      .eq('source', 'catalogue')
-      .order('short_id')
-    marks = (data as Mark[]) ?? []
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('club_id')
+        .eq('id', session.user.id)
+        .maybeSingle()
+
+      if (profile?.club_id) {
+        const { data } = await supabase
+          .from('marks')
+          .select('*')
+          .eq('club_id', profile.club_id)
+          .eq('source', 'catalogue')
+          .order('short_id')
+        setMarks((data as Mark[]) ?? [])
+      }
+      setLoading(false)
+    }
+    fetchData()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-gray-400 text-sm">Loading...</div>
+      </div>
+    )
   }
 
   return (

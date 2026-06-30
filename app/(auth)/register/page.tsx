@@ -1,8 +1,7 @@
 'use client'
-
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { signUp } from '@/app/actions/auth'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 
@@ -11,20 +10,31 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const [isPending, startTransition] = useTransition()
+  const [loading, setLoading] = useState(false)
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-
-    startTransition(async () => {
-      const result = await signUp(email, password, fullName)
-      if (result?.error) {
-        setError(result.error)
-      } else {
-        window.location.href = '/dashboard'
-      }
+    setLoading(true)
+    const supabase = createClient()
+    const { error: signUpErr } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: fullName } }
     })
+    if (signUpErr) {
+      setError(signUpErr.message)
+      setLoading(false)
+      return
+    }
+    // Sign in immediately (email confirmation disabled)
+    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
+    if (signInErr) {
+      setError(signInErr.message)
+      setLoading(false)
+      return
+    }
+    window.location.href = '/dashboard'
   }
 
   return (
@@ -35,52 +45,15 @@ export default function RegisterPage() {
           <h1 className="text-2xl font-bold text-gray-900">Create account</h1>
           <p className="text-sm text-gray-500 mt-1">Join Sail Club HQ</p>
         </div>
-
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
-          <Input
-            label="Full name"
-            type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="Jane Smith"
-            autoComplete="name"
-            required
-          />
-          <Input
-            label="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            autoComplete="email"
-            required
-          />
-          <Input
-            label="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            autoComplete="new-password"
-            hint="At least 8 characters"
-            minLength={8}
-            required
-          />
-
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
-          )}
-
-          <Button type="submit" loading={isPending} className="w-full" size="lg">
-            Create account
-          </Button>
+          <Input label="Full name" type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Jane Smith" autoComplete="name" required />
+          <Input label="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" required />
+          <Input label="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" minLength={8} required />
+          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          <Button type="submit" loading={loading} className="w-full" size="lg">Create account</Button>
         </form>
-
         <p className="text-center text-sm text-gray-500 mt-4">
-          Already have an account?{' '}
-          <Link href="/login" className="text-blue-600 font-medium hover:underline">
-            Sign in
-          </Link>
+          Already have an account? <Link href="/login" className="text-blue-600 font-medium hover:underline">Sign in</Link>
         </p>
       </div>
     </div>

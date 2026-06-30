@@ -1,32 +1,51 @@
+'use client'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/client'
 import { RaceCard } from '@/components/races/RaceCard'
 import { Button } from '@/components/ui/Button'
 import type { Race } from '@/types/database'
 
-export default async function RacesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export default function RacesPage() {
+  const [races, setRaces] = useState<Race[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('club_id')
-    .eq('id', user!.id)
-    .single()
+  useEffect(() => {
+    async function fetchData() {
+      const supabase = createClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) { setLoading(false); return }
 
-  let races: Race[] = []
-  if (profile?.club_id) {
-    const { data } = await supabase
-      .from('races')
-      .select('*')
-      .eq('club_id', profile.club_id)
-      .order('race_date', { ascending: false })
-    races = (data as Race[]) ?? []
-  }
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('club_id')
+        .eq('id', session.user.id)
+        .maybeSingle()
+
+      if (profile?.club_id) {
+        const { data } = await supabase
+          .from('races')
+          .select('*')
+          .eq('club_id', profile.club_id)
+          .order('race_date', { ascending: false })
+        setRaces((data as Race[]) ?? [])
+      }
+      setLoading(false)
+    }
+    fetchData()
+  }, [])
 
   const activeRaces = races.filter((r) => r.status === 'active')
   const upcomingRaces = races.filter((r) => r.status === 'open' || r.status === 'draft')
   const pastRaces = races.filter((r) => r.status === 'finished')
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-gray-400 text-sm">Loading...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
