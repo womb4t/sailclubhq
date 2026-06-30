@@ -191,6 +191,40 @@ export default function EditMarkPage() {
     router.push('/dashboard/marks')
   }
 
+  async function handleUndo(change: ChangeLog) {
+    if (!user) return
+
+    setSaving(true)
+    setError('')
+
+    const supabase = getBrowserClient()
+
+    // Revert the field to its old value
+    const { error: updateErr } = await supabase
+      .from('marks')
+      .update({ [change.field_name]: change.old_value })
+      .eq('id', markId)
+
+    if (updateErr) {
+      setError(updateErr.message)
+      setSaving(false)
+      return
+    }
+
+    // Log the undo as a new change
+    await supabase.from('mark_changes').insert({
+      mark_id: markId,
+      changed_by: user.id,
+      reason: `Undo: reverted ${fieldLabels[change.field_name] || change.field_name} change`,
+      field_name: change.field_name,
+      old_value: change.new_value,
+      new_value: change.old_value,
+    })
+
+    // Refresh the page
+    window.location.reload()
+  }
+
   const fieldLabels: Record<string, string> = {
     name: 'Name',
     short_id: 'Short ID',
@@ -335,9 +369,18 @@ export default function EditMarkPage() {
                     </p>
                     <p className="text-xs text-gray-500 mt-0.5 italic">&ldquo;{c.reason}&rdquo;</p>
                   </div>
-                  <div className="text-right flex-shrink-0">
+                  <div className="text-right flex-shrink-0 space-y-1">
                     <p className="text-xs text-gray-400">{c.profile?.full_name || 'Unknown'}</p>
                     <p className="text-xs text-gray-300">{new Date(c.changed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                    {c.old_value !== null && !c.reason.startsWith('Undo:') && (
+                      <button
+                        onClick={() => handleUndo(c)}
+                        disabled={saving}
+                        className="text-xs text-amber-600 hover:text-amber-800 font-medium"
+                      >
+                        ↩ Undo
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
