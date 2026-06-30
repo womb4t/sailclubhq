@@ -350,7 +350,8 @@ export default function NewCoursePage() {
   const currentModeInfo = MODES.find(m => m.id === mode)!
   const startDone = startLine.length === 2
   const hasLegs = legs.length > 0
-  const canSave = courseName.trim().length > 0 && hasLegs
+  const canSave = hasLegs
+  const [nameWarning, setNameWarning] = useState(false)
 
   // Calculate total course distance in nautical miles
   const courseDistanceNm = (() => {
@@ -585,9 +586,11 @@ export default function NewCoursePage() {
             <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100">
               <input
                 value={courseName}
-                onChange={(e) => setCourseName(e.target.value)}
-                placeholder="Course name…"
-                className="flex-1 text-sm font-medium text-gray-900 bg-transparent border-none outline-none placeholder:text-gray-300"
+                onChange={(e) => { setCourseName(e.target.value); setNameWarning(false) }}
+                placeholder="Enter course name…"
+                className={`flex-1 text-sm font-medium text-gray-900 bg-transparent outline-none placeholder:text-gray-400 border-b-2 pb-0.5 transition-colors ${
+                  nameWarning ? 'border-red-400 placeholder:text-red-400' : 'border-transparent'
+                }`}
               />
               <button
                 onClick={() => setPanelOpen(true)}
@@ -596,7 +599,14 @@ export default function NewCoursePage() {
                 More ›
               </button>
               <button
-                onClick={handleSave}
+                onClick={() => {
+                  if (!courseName.trim()) {
+                    setNameWarning(true)
+                    setSaveError('Please name your course before saving')
+                    return
+                  }
+                  handleSave()
+                }}
                 disabled={!canSave || saving}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold text-white shrink-0 transition-colors ${
                   canSave && !saving
@@ -607,6 +617,12 @@ export default function NewCoursePage() {
                 {saving ? 'Saving…' : '🏁 Finish & Save'}
               </button>
             </div>
+            {/* Name warning */}
+            {nameWarning && (
+              <div className="px-3 py-1.5 bg-red-50 text-red-600 text-xs font-medium border-b border-red-100 flex items-center gap-1.5">
+                ⚠️ Please enter a course name above
+              </div>
+            )}
 
             {/* Stats row */}
             <div className="flex items-center justify-between gap-3 px-3 py-2">
