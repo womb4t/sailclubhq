@@ -622,20 +622,23 @@ export default function NewCoursePage() {
 
               {/* Estimated times */}
               {courseDistanceNm > 0 && (
-                <div className="flex gap-2">
-                  {[3, 5, 8].map(speed => {
-                    const hrs = courseDistanceNm / speed
-                    const h = Math.floor(hrs)
-                    const m = Math.round((hrs - h) * 60)
-                    return (
-                      <div key={speed} className="text-center">
-                        <div className="text-sm font-semibold text-gray-800">
-                          {h > 0 ? `${h}h${m > 0 ? `${m}` : ''}` : `${m}m`}
+                <div className="flex flex-col items-center gap-0.5" title="Estimated Time to Complete (NOT tide adjusted)">
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wide">Est. Time</div>
+                  <div className="flex gap-2">
+                    {[3, 5, 8].map(speed => {
+                      const hrs = courseDistanceNm / speed
+                      const h = Math.floor(hrs)
+                      const m = Math.round((hrs - h) * 60)
+                      return (
+                        <div key={speed} className="text-center">
+                          <div className="text-sm font-semibold text-gray-800">
+                            {h > 0 ? `${h}h${m > 0 ? `${m}` : ''}` : `${m}m`}
+                          </div>
+                          <div className="text-[10px] font-medium text-gray-600">{speed}kt</div>
                         </div>
-                        <div className="text-[10px] text-gray-400">{speed}kt</div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 
