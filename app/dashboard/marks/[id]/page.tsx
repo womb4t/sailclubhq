@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import type { MarkType, RoundingSide } from '@/types/database'
+import SeaMap from '@/components/map/DynamicSeaMap'
 
 interface ChangeLog {
   id: string
@@ -251,6 +252,19 @@ export default function EditMarkPage() {
           {createdByName && `Created by ${createdByName}`}
         </p>
       </div>
+
+      {/* Map */}
+      <Card className="overflow-hidden p-0">
+        <SeaMap
+          center={lat && lon ? [parseFloat(lat), parseFloat(lon)] : [51.35, 0.73]}
+          zoom={15}
+          selectedPosition={lat && lon ? { lat: parseFloat(lat), lon: parseFloat(lon) } : null}
+          onMapClick={(clickLat, clickLon) => { setLat(clickLat.toFixed(7)); setLon(clickLon.toFixed(7)) }}
+          onMarkerDrag={(dragLat, dragLon) => { setLat(dragLat.toFixed(7)); setLon(dragLon.toFixed(7)) }}
+          draggableMarker
+          height="300px"
+        />
+      </Card>
 
       <form onSubmit={handleSaveClick} className="space-y-4">
         <Card>

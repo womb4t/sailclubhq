@@ -1,19 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getBrowserClient } from '@/lib/supabase/browser'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
-import type { MarkType, RoundingSide } from '@/types/database'
+import SeaMap from '@/components/map/DynamicSeaMap'
+import type { Mark, MarkType, RoundingSide } from '@/types/database'
 
 export default function NewMarkPage() {
   const router = useRouter()
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [existingMarks, setExistingMarks] = useState<Mark[]>([])
 
   const [name, setName] = useState('')
   const [shortId, setShortId] = useState('')
@@ -22,6 +24,40 @@ export default function NewMarkPage() {
   const [markType, setMarkType] = useState<MarkType>('virtual')
   const [defaultRounding, setDefaultRounding] = useState<RoundingSide>('port')
   const [notes, setNotes] = useState('')
+
+  // Load existing marks to show on map
+  useEffect(() => {
+    if (!user) return
+
+    async function fetchMarks() {
+      const supabase = getBrowserClient()
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('club_id')
+        .eq('id', user!.id)
+        .maybeSingle()
+
+      if (profile?.club_id) {
+        const { data } = await supabase
+          .from('marks')
+          .select('*')
+          .eq('club_id', profile.club_id)
+          .eq('source', 'catalogue')
+        setExistingMarks((data as Mark[]) ?? [])
+      }
+    }
+    fetchMarks()
+  }, [user])
+
+  function handleMapClick(clickLat: number, clickLon: number) {
+    setLat(clickLat.toFixed(7))
+    setLon(clickLon.toFixed(7))
+  }
+
+  function handleMarkerDrag(dragLat: number, dragLon: number) {
+    setLat(dragLat.toFixed(7))
+    setLon(dragLon.toFixed(7))
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -69,12 +105,55 @@ export default function NewMarkPage() {
     router.push('/dashboard/marks')
   }
 
+  // Map center: use existing marks centroid, or default to Thames Estuary
+  const mapCenter: [number, number] = existingMarks.length > 0
+    ? [
+        existingMarks.reduce((sum, m) => sum + Number(m.lat), 0) / existingMarks.length,
+        existingMarks.reduce((sum, m) => sum + Number(m.lon), 0) / existingMarks.length,
+      ]
+    : [51.35, 0.73]
+
+  const selectedPosition = lat && lon ? { lat: parseFloat(lat), lon: parseFloat(lon) } : null
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Add mark</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Add a mark to your club catalogue</p>
+        <p className="text-sm text-gray-500 mt-0.5">Tap the map to place your mark, or enter coordinates manually</p>
       </div>
+
+      {/* Map */}
+      <Card className="overflow-hidden p-0">
+        <SeaMap
+          center={mapCenter}
+          zoom={existingMarks.length > 0 ? 14 : 13}
+          markers={existingMarks.map(m => ({
+            lat: Number(m.lat),
+            lon: Number(m.lon),
+            label: m.short_id,
+            id: m.id,
+          }))}
+          onMapClick={handleMapClick}
+          onMarkerDrag={handleMarkerDrag}
+          selectedPosition={selectedPosition}
+          draggableMarker
+          height="350px"
+        />
+        {selectedPosition && (
+          <div className="px-4 py-2 bg-blue-50 border-t border-blue-100 flex items-center justify-between">
+            <p className="text-xs font-mono text-blue-700">
+              {parseFloat(lat).toFixed(6)}°N, {parseFloat(lon).toFixed(6)}°E
+            </p>
+            <button
+              type="button"
+              onClick={() => { setLat(''); setLon('') }}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Clear position
+            </button>
+          </div>
+        )}
+      </Card>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <Card>
@@ -159,9 +238,9 @@ export default function NewMarkPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Position</CardTitle>
+            <CardTitle>Position (manual entry)</CardTitle>
           </CardHeader>
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <Input
                 label="Latitude"
@@ -169,7 +248,7 @@ export default function NewMarkPage() {
                 step="any"
                 value={lat}
                 onChange={(e) => setLat(e.target.value)}
-                placeholder="51.3456"
+                placeholder="51.345678"
               />
               <Input
                 label="Longitude"
@@ -177,11 +256,11 @@ export default function NewMarkPage() {
                 step="any"
                 value={lon}
                 onChange={(e) => setLon(e.target.value)}
-                placeholder="0.1234"
+                placeholder="0.123456"
               />
             </div>
             <p className="text-xs text-gray-400">
-              Leave blank for now — you can set coordinates later from the map or by GPS.
+              Or tap the map above to set the position. Drag the marker to fine-tune.
             </p>
           </div>
         </Card>
