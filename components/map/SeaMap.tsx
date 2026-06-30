@@ -12,10 +12,20 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 })
 
+interface MapMarker {
+  lat: number
+  lon: number
+  label?: string
+  id?: string
+  name?: string
+  type?: string
+  rounding?: string
+}
+
 interface SeaMapProps {
   center?: [number, number]
   zoom?: number
-  markers?: { lat: number; lon: number; label?: string; id?: string }[]
+  markers?: MapMarker[]
   onMapClick?: (lat: number, lon: number) => void
   onMarkerDrag?: (lat: number, lon: number) => void
   selectedPosition?: { lat: number; lon: number } | null
@@ -199,21 +209,54 @@ export default function SeaMap({
     const layerGroup = L.layerGroup()
 
     markers.forEach((m) => {
+      const isPort = m.rounding === 'port'
       const circle = L.circleMarker([m.lat, m.lon], {
-        radius: 6,
-        fillColor: '#1e3a5f',
-        fillOpacity: 0.8,
+        radius: 7,
+        fillColor: isPort ? '#dc2626' : m.rounding === 'starboard' ? '#16a34a' : '#1e3a5f',
+        fillOpacity: 0.85,
         color: '#fff',
         weight: 2,
       })
 
+      // Short ID tooltip on hover
       if (m.label) {
-        circle.bindTooltip(m.label, {
+        circle.bindTooltip(`<strong>${m.label}</strong>`, {
           permanent: false,
           direction: 'top',
-          offset: [0, -8],
+          offset: [0, -10],
+          className: 'mark-tooltip',
         })
       }
+
+      // Rich popup on click
+      const latDir = m.lat >= 0 ? 'N' : 'S'
+      const lonDir = m.lon >= 0 ? 'E' : 'W'
+      const absLat = Math.abs(m.lat)
+      const absLon = Math.abs(m.lon)
+      const latDeg = Math.floor(absLat)
+      const latMin = ((absLat - latDeg) * 60).toFixed(3)
+      const lonDeg = Math.floor(absLon)
+      const lonMin = ((absLon - lonDeg) * 60).toFixed(3)
+      const coordStr = `${latDir}${String(latDeg).padStart(2,'0')}°${String(latMin).padStart(6,'0')}' ${lonDir}${String(lonDeg).padStart(3,'0')}°${String(lonMin).padStart(6,'0')}'`
+
+      const roundingHtml = m.rounding
+        ? `<div style="margin-top:4px"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${isPort ? '#dc2626' : '#16a34a'};margin-right:4px"></span><span style="font-size:11px;color:#666">${m.rounding === 'port' ? 'Port' : 'Starboard'}</span></div>`
+        : ''
+
+      const typeHtml = m.type
+        ? `<div style="font-size:11px;color:#888;margin-top:2px">${m.type === 'physical' ? '🔶 Physical' : '📍 Virtual'}</div>`
+        : ''
+
+      circle.bindPopup(
+        `<div style="min-width:140px">
+          <div style="font-weight:600;font-size:13px;color:#111">${m.name || m.label || 'Mark'}</div>
+          <div style="font-size:11px;color:#555;margin-top:2px">${m.label || ''}</div>
+          <div style="font-family:monospace;font-size:11px;color:#666;margin-top:4px">${coordStr}</div>
+          ${roundingHtml}
+          ${typeHtml}
+        </div>`,
+        { closeButton: false, offset: [0, -5] }
+      )
 
       layerGroup.addLayer(circle)
     })

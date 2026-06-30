@@ -25,6 +25,14 @@ export default function NewMarkPage() {
   const [markType, setMarkType] = useState<MarkType>('virtual')
   const [defaultRounding, setDefaultRounding] = useState<RoundingSide>('port')
   const [notes, setNotes] = useState('')
+  const [showSuggestions, setShowSuggestions] = useState(false)
+
+  // Filter existing marks for name suggestions
+  const nameSuggestions = existingMarks.filter(m =>
+    name.length >= 1 &&
+    m.name.toLowerCase().includes(name.toLowerCase()) &&
+    m.name.toLowerCase() !== name.toLowerCase()
+  ).slice(0, 5)
 
   // Load existing marks to show on map
   useEffect(() => {
@@ -132,6 +140,9 @@ export default function NewMarkPage() {
             lat: Number(m.lat),
             lon: Number(m.lon),
             label: m.short_id,
+            name: m.name,
+            type: m.type,
+            rounding: m.default_rounding,
             id: m.id,
           }))}
           onMapClick={handleMapClick}
@@ -163,13 +174,36 @@ export default function NewMarkPage() {
           </CardHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Outer Distance"
-                required
-              />
+              <div className="relative">
+                <Input
+                  label="Name"
+                  value={name}
+                  onChange={(e) => { setName(e.target.value); setShowSuggestions(true) }}
+                  onFocus={() => setShowSuggestions(true)}
+                  placeholder="Outer Distance"
+                  required
+                  autoComplete="off"
+                />
+                {showSuggestions && name.length >= 1 && nameSuggestions.length > 0 && (
+                  <div className="absolute z-20 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                    {nameSuggestions.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => {
+                          setName(s.name)
+                          setShortId(s.short_id)
+                          setShowSuggestions(false)
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 flex items-center justify-between border-b border-gray-50 last:border-0"
+                      >
+                        <span className="text-gray-900">{s.name}</span>
+                        <span className="text-xs text-gray-400 font-mono">{s.short_id}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
               <Input
                 label="Short ID"
                 value={shortId}
