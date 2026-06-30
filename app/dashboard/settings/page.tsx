@@ -12,6 +12,7 @@ interface ClubData {
   name: string
   vhf_channel: string | null
   invite_code: string | null
+  archive_after_months: number | null
 }
 
 interface MemberData {
@@ -40,6 +41,7 @@ export default function SettingsPage() {
 
   const [clubName, setClubName] = useState('')
   const [vhfChannel, setVhfChannel] = useState('')
+  const [archiveMonths, setArchiveMonths] = useState('12')
 
   // Series management
   const [seriesList, setSeriesList] = useState<SeriesData[]>([])
@@ -69,7 +71,7 @@ export default function SettingsPage() {
       const [{ data: clubData }, { data: memberData }] = await Promise.all([
         supabase
           .from('clubs')
-          .select('id, name, vhf_channel, invite_code')
+          .select('id, name, vhf_channel, invite_code, archive_after_months')
           .eq('id', profile.club_id)
           .single(),
         supabase
@@ -83,6 +85,7 @@ export default function SettingsPage() {
         setClub(clubData)
         setClubName(clubData.name)
         setVhfChannel(clubData.vhf_channel ?? '')
+        setArchiveMonths(String(clubData.archive_after_months ?? 12))
       }
       setMembers(memberData ?? [])
 
@@ -171,6 +174,7 @@ export default function SettingsPage() {
       .update({
         name: clubName.trim(),
         vhf_channel: vhfChannel.trim() || null,
+        archive_after_months: parseInt(archiveMonths) || 12,
       })
       .eq('id', club.id)
 
@@ -271,6 +275,21 @@ export default function SettingsPage() {
               placeholder="M2"
               hint="Pre-fills on new races"
             />
+            <div>
+              <label className="text-sm font-medium text-gray-700">Archive completed races after</label>
+              <select
+                value={archiveMonths}
+                onChange={(e) => setArchiveMonths(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="3">3 months</option>
+                <option value="6">6 months</option>
+                <option value="12">12 months</option>
+                <option value="18">18 months</option>
+                <option value="24">24 months</option>
+              </select>
+              <p className="text-xs text-gray-400 mt-1">Completed races move to archive after this period</p>
+            </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
             {success && <p className="text-sm text-green-600">{success}</p>}
             <Button type="submit" loading={saving} size="sm">Save changes</Button>
@@ -360,7 +379,7 @@ export default function SettingsPage() {
               placeholder="Description (optional)"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <p className="text-xs text-gray-400">Completed races auto-archive after 18 months</p>
+
             {seriesError && <p className="text-xs text-red-600">{seriesError}</p>}
             <Button
               type="button"
