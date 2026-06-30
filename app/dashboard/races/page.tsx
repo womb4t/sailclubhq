@@ -18,11 +18,11 @@ const statusVariant: Record<string, 'default' | 'info' | 'success' | 'warning' |
 
 const statusLabel: Record<string, string> = {
   draft: 'Draft',
-  planned: 'Planned',
-  confirmed: 'Confirmed',
-  cancelled: 'Cancelled',
-  completed: 'Completed',
-  archived: 'Archived',
+  planned: 'Race Planned',
+  confirmed: 'Race Confirmed',
+  cancelled: 'Race Cancelled',
+  completed: 'Race Completed',
+  archived: 'Race Archived',
 }
 
 function formatDate(dateStr: string): string {
@@ -116,8 +116,9 @@ export default function RacesPage() {
     fetchRaces()
   }
 
-  const activeRaces = races.filter((r) => r.status === 'confirmed')
-  const upcomingRaces = races.filter((r) => r.status === 'planned' || r.status === 'draft')
+  const today = new Date().toISOString().split('T')[0]
+  const activeRaces = races.filter((r) => r.status === 'confirmed' && r.race_date === today)
+  const upcomingRaces = races.filter((r) => (r.status === 'planned' || r.status === 'draft') || (r.status === 'confirmed' && r.race_date !== today))
   const pastRaces = races.filter((r) => r.status === 'completed' || r.status === 'cancelled' || r.status === 'archived')
 
   if (loading) {
