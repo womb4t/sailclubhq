@@ -74,6 +74,9 @@ export default function NewCoursePage() {
   const [cursorCoord, setCursorCoord] = useState<string>('')
   const mapCenterRef = useRef<[number, number]>([51.35, 0.73])
 
+  // Help panel
+  const [helpOpen, setHelpOpen] = useState(true)
+
   // Undo history — stores actions that can be reversed
   type UndoAction =
     | { type: 'addLeg' }
@@ -396,6 +399,57 @@ export default function NewCoursePage() {
             {cursorCoord}
           </div>
         )}
+
+        {/* Help panel */}
+        <div className={`absolute top-3 right-14 z-[1000] transition-all ${
+          helpOpen ? 'w-72' : 'w-auto'
+        }`}>
+          {helpOpen ? (
+            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 bg-blue-50 border-b border-blue-100">
+                <span className="text-xs font-semibold text-blue-800">📖 How to build a course</span>
+                <button
+                  onClick={() => setHelpOpen(false)}
+                  className="text-blue-400 hover:text-blue-600 text-sm leading-none"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="px-3 py-2.5 space-y-2 text-xs text-gray-600 leading-relaxed">
+                <div className="flex gap-2">
+                  <span className="text-base leading-none mt-0.5">1️⃣</span>
+                  <div><strong className="text-gray-800">Set the start line</strong> — tap two points on the map, or tap existing marks to use them as ends. Use the Committee Boat button for the RC boat end.</div>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-base leading-none mt-0.5">2️⃣</span>
+                  <div><strong className="text-gray-800">Choose finish line</strong> — you&apos;ll be asked if the start line is also the finish. Most club races use the same line.</div>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-base leading-none mt-0.5">3️⃣</span>
+                  <div><strong className="text-gray-800">Add legs</strong> — tap marks on the map to add them to the course in order. Tap open water to drop a temporary mark (TM1, TM2…).</div>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-base leading-none mt-0.5">4️⃣</span>
+                  <div><strong className="text-gray-800">Set rounding</strong> — tap any mark in the course to toggle port <span className="text-red-600">🔴</span> / starboard <span className="text-green-600">🟢</span>.</div>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-base leading-none mt-0.5">5️⃣</span>
+                  <div><strong className="text-gray-800">Send to finish</strong> — hit the 🏁 button when done adding legs, then review and save.</div>
+                </div>
+                <div className="border-t border-gray-100 pt-2 mt-1 text-gray-400">
+                  <strong>Tips:</strong> Use ↩ Undo to step back. Reorder legs in the details panel. Temp marks only exist in this course.
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setHelpOpen(true)}
+              className="bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50 transition-colors"
+            >
+              📖 Help
+            </button>
+          )}
+        </div>
 
         {/* Mode hint banner */}
         <div className="absolute top-14 left-1/2 -translate-x-1/2 z-[1000] bg-black/70 text-white text-xs px-4 py-2 rounded-full pointer-events-none max-w-xs text-center">
