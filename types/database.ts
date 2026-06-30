@@ -59,6 +59,15 @@ export interface CourseTemplate {
   laps: number | null
   expected_wind_dir: number | null
   notes: string | null
+  start_line_lat1: number | null
+  start_line_lng1: number | null
+  start_line_lat2: number | null
+  start_line_lng2: number | null
+  finish_line_lat1: number | null
+  finish_line_lng1: number | null
+  finish_line_lat2: number | null
+  finish_line_lng2: number | null
+  finish_at_start: boolean | null
   created_at: string
 }
 

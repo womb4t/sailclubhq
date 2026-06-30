@@ -79,13 +79,40 @@ export default function CourseDetailPage() {
     router.push('/dashboard/courses')
   }
 
-  // Calculate distance
+  // Calculate distance (including start→first and last→finish)
   const totalDistanceNm = (() => {
-    if (legs.length < 2) return 0
+    if (legs.length === 0) return 0
     let total = 0
+
+    // Start line midpoint to first leg
+    if (course?.start_line_lat1 != null && course?.start_line_lat2 != null && legs.length > 0) {
+      const smLat = (course.start_line_lat1 + course.start_line_lat2) / 2
+      const smLng = (course.start_line_lng1! + course.start_line_lng2!) / 2
+      total += haversineNm(smLat, smLng, legs[0].mark.lat, legs[0].mark.lon)
+    }
+
+    // Between legs
     for (let i = 0; i < legs.length - 1; i++) {
       total += haversineNm(legs[i].mark.lat, legs[i].mark.lon, legs[i + 1].mark.lat, legs[i + 1].mark.lon)
     }
+
+    // Last leg to finish line midpoint
+    if (legs.length > 0 && course) {
+      let fLat1: number | null = null, fLng1: number | null = null, fLat2: number | null = null, fLng2: number | null = null
+      if (course.finish_at_start && course.start_line_lat1 != null) {
+        fLat1 = course.start_line_lat1; fLng1 = course.start_line_lng1
+        fLat2 = course.start_line_lat2; fLng2 = course.start_line_lng2
+      } else if (course.finish_line_lat1 != null) {
+        fLat1 = course.finish_line_lat1; fLng1 = course.finish_line_lng1
+        fLat2 = course.finish_line_lat2; fLng2 = course.finish_line_lng2
+      }
+      if (fLat1 != null && fLat2 != null && fLng1 != null && fLng2 != null) {
+        const fmLat = (fLat1 + fLat2) / 2
+        const fmLng = (fLng1 + fLng2) / 2
+        total += haversineNm(legs[legs.length - 1].mark.lat, legs[legs.length - 1].mark.lon, fmLat, fmLng)
+      }
+    }
+
     const lapCount = course?.laps ?? 1
     return total * (lapCount > 0 ? lapCount : 1)
   })()

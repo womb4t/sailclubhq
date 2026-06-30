@@ -310,7 +310,8 @@ export default function NewCoursePage() {
         tempIdMap[tl.markId] = inserted.id
       }
 
-      // 2. Create course template
+      // 2. Create course template (including start/finish lines)
+      const effectiveFinishAtStart = finishAtStart !== false
       const { data: template, error: tErr } = await supabase
         .from('course_templates')
         .insert({
@@ -319,6 +320,15 @@ export default function NewCoursePage() {
           laps: laps ? parseInt(laps) : null,
           expected_wind_dir: windDir ? parseInt(windDir) : null,
           notes: notes.trim() || null,
+          start_line_lat1: startLine.length >= 1 ? startLine[0].lat : null,
+          start_line_lng1: startLine.length >= 1 ? startLine[0].lng : null,
+          start_line_lat2: startLine.length >= 2 ? startLine[1].lat : null,
+          start_line_lng2: startLine.length >= 2 ? startLine[1].lng : null,
+          finish_at_start: effectiveFinishAtStart,
+          finish_line_lat1: (!effectiveFinishAtStart && finishLine && finishLine.length >= 1) ? finishLine[0].lat : null,
+          finish_line_lng1: (!effectiveFinishAtStart && finishLine && finishLine.length >= 1) ? finishLine[0].lng : null,
+          finish_line_lat2: (!effectiveFinishAtStart && finishLine && finishLine.length >= 2) ? finishLine[1].lat : null,
+          finish_line_lng2: (!effectiveFinishAtStart && finishLine && finishLine.length >= 2) ? finishLine[1].lng : null,
         })
         .select()
         .single()
