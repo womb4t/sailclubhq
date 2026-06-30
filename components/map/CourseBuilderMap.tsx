@@ -274,13 +274,14 @@ export default function CourseBuilderMap({
         }
       }
 
-      // Line from start line midpoint to first leg (if start is set)
-      if (startLine.length === 2 && legs.length > 0) {
-        const sm = midpoint(startLine[0], startLine[1])
-        layer.addLayer(L.polyline([sm, [legs[0].lat, legs[0].lng]], {
-          color: '#64748b', weight: 2, opacity: 0.6, dashArray: '6,4', interactive: false,
-        }))
-      }
+    }
+
+    // Line from start line midpoint to first leg — always draw when we have start + at least 1 leg
+    if (startLine.length === 2 && legs.length > 0) {
+      const sm = midpoint(startLine[0], startLine[1])
+      layer.addLayer(L.polyline([sm, [legs[0].lat, legs[0].lng]], {
+        color: '#64748b', weight: 2, opacity: 0.6, dashArray: '6,4', interactive: false,
+      }))
     }
 
     // Markers for each leg
