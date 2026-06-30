@@ -107,16 +107,24 @@ export default function NewRacePage() {
         const maxNum = Math.max(0, ...races.map(r => r.race_number ?? 0))
         setRaceNumber(String(maxNum + 1))
 
-        const seriesSet = new Set<string>()
-        races.forEach(r => { if (r.series) seriesSet.add(r.series) })
-        setExistingSeries(Array.from(seriesSet))
-
         // Pre-select most recent series
         const lastSeries = races.find(r => r.series)?.series
         if (lastSeries) setSeries(lastSeries)
       } else {
         setRaceNumber('1')
       }
+
+      // Fetch series from race_series table + merge any from past races
+      const { data: seriesRows } = await supabase
+        .from('race_series')
+        .select('name')
+        .eq('club_id', cid)
+        .eq('is_active', true)
+        .order('name')
+      const seriesSet = new Set<string>()
+      if (seriesRows) seriesRows.forEach(s => seriesSet.add(s.name))
+      if (races) races.forEach(r => { if (r.series) seriesSet.add(r.series) })
+      setExistingSeries(Array.from(seriesSet).sort())
 
       // Course templates with leg counts
       const { data: templates } = await supabase
