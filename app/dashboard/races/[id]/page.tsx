@@ -144,6 +144,12 @@ export default function RaceDetailPage() {
   const [startClasses, setStartClasses] = useState<StartClass[]>([])
   const [editingClass, setEditingClass] = useState<EditingClass | null>(null)
 
+  // Entries
+  const [entries, setEntries] = useState<RaceEntry[]>([])
+  const [entryToDelete, setEntryToDelete] = useState<string | null>(null)
+  const [deletingEntry, setDeletingEntry] = useState(false)
+  const [updatingEntryStatus, setUpdatingEntryStatus] = useState<string | null>(null)
+
   // Messages
   const [messages, setMessages] = useState<{ id: string; message: string; is_headline: boolean; created_at: string }[]>([])
   const [newMessage, setNewMessage] = useState('')
@@ -196,6 +202,14 @@ export default function RaceDetailPage() {
 
       if (classes) setStartClasses(classes as StartClass[])
 
+      // Fetch race entries
+      const { data: entriesData } = await supabase
+        .from('race_entries')
+        .select('*, boat:boats(boat_name, sail_number), start_class:start_classes(name)')
+        .eq('race_id', id)
+        .order('created_at', { ascending: true })
+      if (entriesData) setEntries(entriesData as RaceEntry[])
+
       // Fetch messages
       const { data: msgs } = await supabase
         .from('race_messages')
@@ -219,6 +233,33 @@ export default function RaceDetailPage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
+  }
+
+  async function handleEntryStatusChange(entryId: string, newStatus: EntryStatus) {
+    setUpdatingEntryStatus(entryId)
+    const supabase = getBrowserClient()
+    const { error: err } = await supabase
+      .from('race_entries')
+      .update({ status: newStatus })
+      .eq('id', entryId)
+    if (!err) {
+      setEntries(prev => prev.map(e => e.id === entryId ? { ...e, status: newStatus } : e))
+    }
+    setUpdatingEntryStatus(null)
+  }
+
+  async function handleDeleteEntry(entryId: string) {
+    setDeletingEntry(true)
+    const supabase = getBrowserClient()
+    const { error: err } = await supabase
+      .from('race_entries')
+      .delete()
+      .eq('id', entryId)
+    if (!err) {
+      setEntries(prev => prev.filter(e => e.id !== entryId))
+    }
+    setDeletingEntry(false)
+    setEntryToDelete(null)
   }
 
   async function handlePostMessage() {
@@ -659,6 +700,68 @@ export default function RaceDetailPage() {
         )}
       </Card>
 
+      {/* Entries / Competitors */}
+      <Card>
+        <CardHeader>
+          <CardTitle>⛵ Competitors ({entries.length})</CardTitle>
+        </CardHeader>
+        {entries.length === 0 ? (
+          <p className="text-sm text-gray-400">No entries yet.</p>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {entries.map((entry) => (
+              <div key={entry.id} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-gray-900">
+                      {entry.helm_name || '—'}
+                    </span>
+                    {entry.boat && (
+                      <span className="text-sm text-gray-500">
+                        {entry.boat.boat_name}
+                        {entry.boat.sail_number && (
+                          <span className="ml-1 text-gray-400">#{entry.boat.sail_number}</span>
+                        )}
+                      </span>
+                    )}
+                    {entry.start_class && (
+                      <span className="text-xs text-gray-400 bg-gray-100 rounded px-1.5 py-0.5">
+                        {entry.start_class.name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${entryStatusVariant[entry.status]}`}>
+                    {entry.status}
+                  </span>
+                  <select
+                    value={entry.status}
+                    onChange={(e) => handleEntryStatusChange(entry.id, e.target.value as EntryStatus)}
+                    disabled={updatingEntryStatus === entry.id}
+                    className="text-xs border border-gray-200 rounded px-1.5 py-1 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  >
+                    <option value="entered">entered</option>
+                    <option value="racing">racing</option>
+                    <option value="withdrawn">withdrawn</option>
+                    <option value="DNF">DNF</option>
+                    <option value="OCS">OCS</option>
+                    <option value="protest">protest</option>
+                  </select>
+                  <button
+                    onClick={() => setEntryToDelete(entry.id)}
+                    className="text-xs text-red-400 hover:text-red-600 px-1.5 py-1 rounded hover:bg-red-50 transition-colors"
+                    title="Remove entry"
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       {/* Competitor entry link */}
       <Card>
         <CardHeader>
@@ -718,6 +821,36 @@ export default function RaceDetailPage() {
           <Button variant="secondary" size="sm">← Back to races</Button>
         </Link>
       </div>
+
+      {/* Delete entry confirmation */}
+      {entryToDelete && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900">Remove entry?</h3>
+            <p className="text-sm text-gray-500">
+              This will remove the competitor from <strong>{race.name}</strong>.
+            </p>
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => setEntryToDelete(null)}
+                disabled={deletingEntry}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                className="flex-1"
+                loading={deletingEntry}
+                onClick={() => handleDeleteEntry(entryToDelete)}
+              >
+                Remove
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation modal */}
       {showDeleteConfirm && (
