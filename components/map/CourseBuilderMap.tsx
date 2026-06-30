@@ -276,18 +276,17 @@ export default function CourseBuilderMap({
 
     }
 
-    // Line from start line midpoint to first leg — always draw when we have start + at least 1 leg
+    // Line from start line midpoint to first leg
     if (startLine.length === 2 && legs.length > 0) {
       const sm = midpoint(startLine[0], startLine[1])
       layer.addLayer(L.polyline([sm, [legs[0].lat, legs[0].lng]], {
-        color: '#64748b', weight: 2, opacity: 0.6, dashArray: '6,4', interactive: false,
+        color: '#1d4ed8', weight: 3, opacity: 0.85, interactive: false,
       }))
     }
 
     // Line from last leg to finish line midpoint
     if (legs.length > 0 && mode === 'review') {
       const lastLeg = legs[legs.length - 1]
-      // Determine finish line points
       const effectiveFinish = finishAtStart === true
         ? (startLine.length === 2 ? startLine : null)
         : (finishLine && finishLine.length === 2 ? finishLine : null)
@@ -295,7 +294,7 @@ export default function CourseBuilderMap({
       if (effectiveFinish) {
         const fm = midpoint(effectiveFinish[0], effectiveFinish[1])
         layer.addLayer(L.polyline([[lastLeg.lat, lastLeg.lng], fm], {
-          color: '#64748b', weight: 2, opacity: 0.6, dashArray: '6,4', interactive: false,
+          color: '#1d4ed8', weight: 3, opacity: 0.85, interactive: false,
         }))
       }
     }
