@@ -78,7 +78,18 @@ export default function RaceJoinPage() {
       setLoading(false)
     }
     lookupRace()
-  }, [token, authLoading, user])
+  }, [token])
+
+  // Redirect unauthenticated users to login, with club code + race token
+  useEffect(() => {
+    if (authLoading || loading) return
+    if (!user) {
+      const clubCode = race?.club?.invite_code
+      const params = new URLSearchParams({ race: token })
+      if (clubCode) params.set('join', clubCode)
+      router.replace(`/login?${params.toString()}`)
+    }
+  }, [authLoading, loading, user, race, token, router])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -97,7 +108,7 @@ export default function RaceJoinPage() {
   const startTime = race ? extractStartTime(race.notes) : null
   const isOpen = race?.status === 'planned' || race?.status === 'confirmed'
 
-  if (loading) {
+  if (loading || authLoading || (!user && !notFound)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-gray-400 text-sm">Loading...</div>

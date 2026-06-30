@@ -126,6 +126,12 @@ export default async function PublicRaceCalendarPage({ params }: PageProps) {
         </div>
       </div>
 
+      <div className="max-w-2xl mx-auto px-4 pt-4 pb-0">
+        <Link href={`/club/${code}`} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium">
+          ← Back to club
+        </Link>
+      </div>
+
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-8">
         {allRaces.length === 0 ? (
           <div className="text-center py-16">
