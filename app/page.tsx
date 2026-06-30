@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useAuth } from '@/context/AuthContext'
 
 export default function RootPage() {
@@ -16,54 +17,80 @@ export default function RootPage() {
 
   if (loading || redirecting) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 flex items-center justify-center">
+      <div className="min-h-screen bg-blue-950 flex items-center justify-center">
         <div className="text-blue-200 text-sm">Loading...</div>
       </div>
     )
   }
 
-  // Not logged in — show landing page
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 flex flex-col items-center justify-center px-4">
-      <div className="text-center mb-10">
+    <main className="min-h-screen relative flex flex-col items-center justify-center px-4">
+      {/* Background image */}
+      <Image
+        src="/hero-sailing.jpg"
+        alt="Sailboats racing at sea"
+        fill
+        className="object-cover"
+        priority
+        quality={85}
+      />
+
+      {/* Dark overlay for readability */}
+      <div className="absolute inset-0 bg-gradient-to-b from-blue-950/70 via-blue-900/60 to-blue-950/80" />
+
+      {/* Content */}
+      <div className="relative z-10 text-center mb-10">
         <div className="inline-flex items-center gap-2 mb-4">
-          <span className="text-4xl">⛵</span>
+          <span className="text-5xl drop-shadow-lg">⛵</span>
         </div>
-        <h1 className="text-4xl font-bold text-white tracking-tight">Sail Club HQ</h1>
-        <p className="text-blue-200 mt-2 text-lg">Race management for sailing clubs</p>
+        <h1 className="text-5xl font-bold text-white tracking-tight drop-shadow-lg">
+          Sail Club HQ
+        </h1>
+        <p className="text-blue-100 mt-3 text-xl font-light drop-shadow">
+          Race management for sailing clubs
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl w-full mb-10">
+      <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl w-full mb-10">
         {[
           { icon: '📍', title: 'Marks Catalogue', desc: 'Virtual & physical marks with GPS coords' },
           { icon: '🗺️', title: 'Course Builder', desc: 'Design courses with leg-level rounding rules' },
           { icon: '🏁', title: 'Race Management', desc: 'Starts, entries, GPS tracking & results' },
         ].map((f) => (
-          <div key={f.title} className="bg-white/10 rounded-xl p-4 text-center backdrop-blur-sm">
+          <div key={f.title} className="bg-white/10 backdrop-blur-md rounded-xl p-4 text-center border border-white/20">
             <div className="text-2xl mb-2">{f.icon}</div>
             <h2 className="text-sm font-semibold text-white">{f.title}</h2>
-            <p className="text-xs text-blue-200 mt-1">{f.desc}</p>
+            <p className="text-xs text-blue-100 mt-1">{f.desc}</p>
           </div>
         ))}
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+      <div className="relative z-10 flex flex-col sm:flex-row gap-3 w-full max-w-xs">
         <Link
           href="/register"
-          className="flex-1 bg-white text-blue-900 font-semibold text-center py-3 px-6 rounded-xl hover:bg-blue-50 transition-colors"
+          className="flex-1 bg-white text-blue-900 font-semibold text-center py-3 px-6 rounded-xl hover:bg-blue-50 transition-colors shadow-lg"
         >
           Get started
         </Link>
         <Link
           href="/login"
-          className="flex-1 border border-white/30 text-white font-semibold text-center py-3 px-6 rounded-xl hover:bg-white/10 transition-colors"
+          className="flex-1 border border-white/40 text-white font-semibold text-center py-3 px-6 rounded-xl hover:bg-white/10 transition-colors backdrop-blur-sm"
         >
           Sign in
         </Link>
       </div>
 
-      <p className="text-blue-400 text-xs mt-8">
-        Built for race officers, by sailors.
+      {/* Photo credit */}
+      <p className="relative z-10 text-blue-300/60 text-xs mt-12">
+        Photo by{' '}
+        <a
+          href="https://www.pexels.com/photo/sailboats-sailing-at-sea-4015746/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline hover:text-blue-200/80 transition-colors"
+        >
+          Cameron Shaw
+        </a>
       </p>
     </main>
   )
