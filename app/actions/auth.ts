@@ -1,7 +1,6 @@
 'use server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
 
 export async function signIn(email: string, password: string) {
   const cookieStore = await cookies()
@@ -21,7 +20,7 @@ export async function signIn(email: string, password: string) {
   )
   const { error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) return { error: error.message }
-  redirect('/dashboard')
+  return { success: true }
 }
 
 export async function signUp(email: string, password: string, fullName: string) {
@@ -48,5 +47,5 @@ export async function signUp(email: string, password: string, fullName: string) 
   if (error) return { error: error.message }
   const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
   if (signInError) return { error: signInError.message }
-  redirect('/dashboard')
+  return { success: true }
 }

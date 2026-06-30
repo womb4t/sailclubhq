@@ -20,6 +20,8 @@ export default function LoginPage() {
       const result = await signIn(email, password)
       if (result?.error) {
         setError(result.error)
+      } else {
+        window.location.href = '/dashboard'
       }
     })
   }

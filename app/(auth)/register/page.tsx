@@ -21,6 +21,8 @@ export default function RegisterPage() {
       const result = await signUp(email, password, fullName)
       if (result?.error) {
         setError(result.error)
+      } else {
+        window.location.href = '/dashboard'
       }
     })
   }
