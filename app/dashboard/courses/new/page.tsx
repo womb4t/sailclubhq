@@ -574,6 +574,58 @@ export default function NewCoursePage() {
           </div>
         )}
 
+        {/* Info panel — fixed at bottom of map */}
+        {(hasLegs || startDone) && (
+          <div className="absolute bottom-32 left-3 right-3 z-[1000] bg-white/95 backdrop-blur-sm rounded-xl shadow-lg border border-gray-200 px-3 py-2">
+            <div className="flex items-center justify-between gap-3">
+              {/* Legs count */}
+              <div className="text-center">
+                <div className="text-lg font-bold text-gray-800">{legs.length}</div>
+                <div className="text-[10px] text-gray-400 uppercase tracking-wide">Legs</div>
+              </div>
+
+              {/* Distance */}
+              {courseDistanceNm > 0 && (
+                <div className="text-center">
+                  <div className="text-lg font-bold text-blue-700">{courseDistanceNm.toFixed(2)}</div>
+                  <div className="text-[10px] text-gray-400 uppercase tracking-wide">nm{laps && parseInt(laps) > 1 ? ` (${laps} laps)` : ''}</div>
+                </div>
+              )}
+
+              {/* Estimated times */}
+              {courseDistanceNm > 0 && (
+                <div className="flex gap-2">
+                  {[3, 5, 8].map(speed => {
+                    const hrs = courseDistanceNm / speed
+                    const h = Math.floor(hrs)
+                    const m = Math.round((hrs - h) * 60)
+                    return (
+                      <div key={speed} className="text-center">
+                        <div className="text-sm font-semibold text-gray-800">
+                          {h > 0 ? `${h}h${m > 0 ? `${m}` : ''}` : `${m}m`}
+                        </div>
+                        <div className="text-[10px] text-gray-400">{speed}kt</div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Finish status */}
+              <div className="text-center">
+                {finishAtStart === true && startDone ? (
+                  <div className="text-xs font-medium text-purple-600">✓ S/F</div>
+                ) : finishAtStart === false && finishLine && finishLine.length === 2 ? (
+                  <div className="text-xs font-medium text-blue-600">✓ Finish</div>
+                ) : (
+                  <div className="text-xs font-medium text-gray-400">–</div>
+                )}
+                <div className="text-[10px] text-gray-400 uppercase tracking-wide">Finish</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Undo + Send to Finish — secondary action row */}
         <div className="absolute bottom-20 left-0 right-0 flex justify-center gap-2 px-4 z-[1000]">
           {/* Undo button */}
