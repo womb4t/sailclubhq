@@ -10,11 +10,16 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: '🏠' },
+  { href: '/', label: 'Dashboard', icon: '🏠' },
   { href: '/races', label: 'Races', icon: '🏁' },
   { href: '/marks', label: 'Marks', icon: '📍' },
   { href: '/courses', label: 'Courses', icon: '🗺️' },
 ]
+
+function isActive(pathname: string, href: string): boolean {
+  if (href === '/') return pathname === '/'
+  return pathname === href || pathname.startsWith(href)
+}
 
 export function DashboardNav({ mobile = false }: { mobile?: boolean }) {
   const pathname = usePathname()
@@ -23,7 +28,7 @@ export function DashboardNav({ mobile = false }: { mobile?: boolean }) {
     return (
       <div className="flex justify-around py-2">
         {navItems.map((item) => {
-          const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+          const active = isActive(pathname, item.href)
           return (
             <Link
               key={item.href}
@@ -45,7 +50,7 @@ export function DashboardNav({ mobile = false }: { mobile?: boolean }) {
   return (
     <nav className="flex-1 px-3 py-4 space-y-1">
       {navItems.map((item) => {
-        const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+        const active = isActive(pathname, item.href)
         return (
           <Link
             key={item.href}

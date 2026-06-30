@@ -1,7 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { getBrowserClient } from '@/lib/supabase/browser'
+import { useAuth } from '@/context/AuthContext'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import type { Race, Profile, Club } from '@/types/database'
@@ -11,24 +12,22 @@ interface ProfileWithClub extends Profile {
 }
 
 export default function DashboardPage() {
+  const { user } = useAuth()
   const [profile, setProfile] = useState<ProfileWithClub | null>(null)
   const [recentRaces, setRecentRaces] = useState<Race[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!user) return
+
     async function fetchData() {
-      const supabase = createClient()
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) {
-        setLoading(false)
-        return
-      }
+      const supabase = getBrowserClient()
 
       const [{ data: profileData }, { data: racesData }] = await Promise.all([
         supabase
           .from('profiles')
           .select('*, clubs(*)')
-          .eq('id', session.user.id)
+          .eq('id', user!.id)
           .maybeSingle(),
         supabase
           .from('races')
@@ -43,11 +42,11 @@ export default function DashboardPage() {
     }
 
     fetchData()
-  }, [])
+  }, [user])
 
-  const firstName = profile?.full_name?.split(' ')[0] ?? 'there'
+  const firstName = profile?.full_name?.split(' ')[0] ?? user?.user_metadata?.full_name?.split(' ')[0] ?? 'there'
 
-  if (loading) {
+  if (loading && user) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-gray-400 text-sm">Loading...</div>
@@ -124,7 +123,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {recentRaces.length === 0 && (
+      {recentRaces.length === 0 && !loading && (
         <Card className="text-center py-10">
           <p className="text-gray-400 text-sm mb-4">No races yet. Ready to run your first one?</p>
           <Link href="/races/new">

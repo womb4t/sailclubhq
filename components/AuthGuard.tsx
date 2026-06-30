@@ -1,41 +1,27 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { useEffect } from 'react'
+import { useAuth } from '@/context/AuthContext'
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const router = useRouter()
-  const [status, setStatus] = useState<'loading' | 'authed' | 'unauthed'>('loading')
+  const { user, loading } = useAuth()
 
   useEffect(() => {
-    const supabase = createClient()
-
-    // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setStatus(session ? 'authed' : 'unauthed')
-    })
-
-    // Also listen for auth state changes (handles the case where session loads async)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setStatus(session ? 'authed' : 'unauthed')
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
-
-  useEffect(() => {
-    if (status === 'unauthed') {
-      router.replace('/login')
+    if (!loading && !user) {
+      window.location.href = '/login'
     }
-  }, [status, router])
+  }, [user, loading])
 
-  if (status === 'loading') return (
+  if (loading) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="text-gray-400 text-sm">Loading...</div>
     </div>
   )
 
-  if (status === 'unauthed') return null
+  if (!user) return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="text-gray-400 text-sm">Redirecting...</div>
+    </div>
+  )
 
   return <>{children}</>
 }

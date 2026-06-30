@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { getBrowserClient } from '@/lib/supabase/browser'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 
@@ -16,17 +16,19 @@ export default function RegisterPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const supabase = createClient()
+    const supabase = getBrowserClient()
+
     const { error: signUpErr } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } }
+      options: { data: { full_name: fullName } },
     })
     if (signUpErr) {
       setError(signUpErr.message)
       setLoading(false)
       return
     }
+
     // Sign in immediately (email confirmation disabled)
     const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
     if (signInErr) {
@@ -34,7 +36,8 @@ export default function RegisterPage() {
       setLoading(false)
       return
     }
-    window.location.href = '/dashboard'
+
+    window.location.href = '/'
   }
 
   return (

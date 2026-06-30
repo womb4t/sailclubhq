@@ -1,6 +1,15 @@
-import { redirect } from 'next/navigation'
+'use client'
+import { useEffect } from 'react'
 
-// /dashboard redirects to the root dashboard (app/(dashboard)/page.tsx)
+// /dashboard → redirect to root dashboard (app/(dashboard)/page.tsx at /)
 export default function DashboardRedirect() {
-  redirect('/')
+  useEffect(() => {
+    window.location.href = '/'
+  }, [])
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="text-gray-400 text-sm">Loading...</div>
+    </div>
+  )
 }

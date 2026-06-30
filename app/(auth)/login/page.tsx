@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { getBrowserClient } from '@/lib/supabase/browser'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 
@@ -15,14 +15,14 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const supabase = createClient()
+    const supabase = getBrowserClient()
     const { error: err } = await supabase.auth.signInWithPassword({ email, password })
     if (err) {
       setError(err.message)
       setLoading(false)
       return
     }
-    window.location.href = '/dashboard'
+    window.location.href = '/'
   }
 
   return (
