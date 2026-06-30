@@ -70,6 +70,46 @@ export default function NewCoursePage() {
   // Coord display
   const [cursorCoord, setCursorCoord] = useState<string>('')
 
+  // Undo history — stores actions that can be reversed
+  type UndoAction =
+    | { type: 'addLeg' }
+    | { type: 'startPoint' }
+    | { type: 'finishPoint' }
+  const [undoStack, setUndoStack] = useState<UndoAction[]>([])
+
+  function pushUndo(action: UndoAction) {
+    setUndoStack(prev => [...prev, action])
+  }
+
+  function handleUndo() {
+    if (undoStack.length === 0) return
+    const last = undoStack[undoStack.length - 1]
+    setUndoStack(prev => prev.slice(0, -1))
+
+    switch (last.type) {
+      case 'addLeg': {
+        const removed = legs[legs.length - 1]
+        if (removed?.isTemp) setTempMarkCount(prev => Math.max(0, prev - 1))
+        setLegs(prev => prev.slice(0, -1))
+        break
+      }
+      case 'startPoint': {
+        setStartLine(prev => prev.slice(0, -1))
+        if (mode === 'addLegs' && startLine.length <= 2) setMode('setStart')
+        break
+      }
+      case 'finishPoint': {
+        setFinishLine(prev => {
+          if (!prev) return null
+          const next = prev.slice(0, -1)
+          return next.length === 0 ? null : next
+        })
+        if (mode === 'review') setMode('setFinish')
+        break
+      }
+    }
+  }
+
   // ─── Load club + marks ──────────────────────────────────────────────────
   useEffect(() => {
     if (!user) return
@@ -106,18 +146,13 @@ export default function NewCoursePage() {
         if (prev.length >= 2) return [{ lat, lng }]
         return [...prev, { lat, lng }]
       })
-      // Auto-advance to addLegs when both points set
-      setStartLine(prev => {
-        if (prev.length === 1) {
-          // Will be 2 after this render — handled via effect below
-        }
-        return prev
-      })
+      pushUndo({ type: 'startPoint' })
     } else if (mode === 'setFinish') {
       setFinishLine(prev => {
         if (!prev || prev.length >= 2) return [{ lat, lng }]
         return [...prev, { lat, lng }]
       })
+      pushUndo({ type: 'finishPoint' })
     } else if (mode === 'addLegs') {
       // Drop a temp mark on open water
       const count = tempMarkCount + 1
@@ -132,6 +167,7 @@ export default function NewCoursePage() {
         isTemp: true,
       }
       setLegs(prev => [...prev, newLeg])
+      pushUndo({ type: 'addLeg' })
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, tempMarkCount, uniqueId])
@@ -165,6 +201,7 @@ export default function NewCoursePage() {
       isTemp: false,
     }
     setLegs(prev => [...prev, newLeg])
+    pushUndo({ type: 'addLeg' })
   }, [mode])
 
   const handleLegClick = useCallback((index: number) => {
@@ -344,6 +381,34 @@ export default function NewCoursePage() {
           )}
           {mode === 'setFinish' && finishLine && finishLine.length === 1 && (
             <span className="ml-1 text-yellow-300">(tap 2nd point)</span>
+          )}
+        </div>
+
+        {/* Undo + Send to Finish — secondary action row */}
+        <div className="absolute bottom-20 left-0 right-0 flex justify-center gap-2 px-4 z-[1000]">
+          {/* Undo button */}
+          {undoStack.length > 0 && (
+            <button
+              onClick={handleUndo}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium shadow-lg bg-white/90 text-gray-700 hover:bg-white transition-all backdrop-blur-sm"
+            >
+              ↩ Undo
+            </button>
+          )}
+
+          {/* Send to Finish button — visible in addLegs mode when we have at least 1 leg */}
+          {mode === 'addLegs' && legs.length >= 1 && startLine.length === 2 && (
+            <button
+              onClick={() => {
+                // Close course building — switch to review with finish at start
+                setFinishAtStart(true)
+                setMode('review')
+                setPanelOpen(true)
+              }}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium shadow-lg bg-amber-500 text-white hover:bg-amber-600 transition-all"
+            >
+              🏁 Send to Finish
+            </button>
           )}
         </div>
 
