@@ -22,7 +22,7 @@ const CourseBuilderMap = dynamic(() => import('@/components/map/CourseBuilderMap
 // ─── Mode metadata ────────────────────────────────────────────────────────────
 const MODES: { id: BuilderMode; label: string; icon: string; hint: string }[] = [
   { id: 'setStart', label: 'Start Line', icon: '⚓', hint: 'Tap 2 points on the map to set the start line' },
-  { id: 'addLegs', label: 'Add Legs', icon: '🔵', hint: 'Tap a mark to add it, or tap open water for a temp mark' },
+  { id: 'addLegs', label: 'Add Legs', icon: '🔵', hint: 'Tap a mark to add it, tap open water for a temp mark, or tap an existing course mark to revisit it' },
   { id: 'setFinish', label: 'Finish Line', icon: '🏁', hint: 'Tap 2 points for a separate finish line' },
   { id: 'review', label: 'Review', icon: '📋', hint: 'Review and save your course' },
 ]
@@ -231,8 +231,21 @@ export default function NewCoursePage() {
   }, [mode, startLine])
 
   const handleLegClick = useCallback((index: number) => {
-    // Toggle rounding side when tapping a leg marker on the map
-    if (mode === 'addLegs' || mode === 'review') {
+    if (mode === 'addLegs') {
+      // In addLegs mode, tapping an existing course mark adds another leg to it
+      // This enables sausage courses (e.g. A → B → C → A → B)
+      setLegs(prev => {
+        const source = prev[index]
+        if (!source) return prev
+        const newLeg: CourseLeg = {
+          ...source,
+          id: `${source.markId}-repeat-${Date.now()}`,
+        }
+        return [...prev, newLeg]
+      })
+      pushUndo({ type: 'addLeg' })
+    } else if (mode === 'review') {
+      // In review mode, toggle rounding side
       setLegs(prev => prev.map((l, i) => i === index
         ? { ...l, roundingSide: l.roundingSide === 'port' ? 'starboard' : 'port' }
         : l
