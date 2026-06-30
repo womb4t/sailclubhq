@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { getBrowserClient } from '@/lib/supabase/browser'
 import { Button } from '@/components/ui/Button'
@@ -41,6 +41,9 @@ export default function RacesPage() {
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<Race | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [inviteCode, setInviteCode] = useState<string | null>(null)
+  const [showShare, setShowShare] = useState(false)
+  const shareRef = useRef<HTMLDivElement>(null)
 
   async function fetchRaces() {
     const supabase = getBrowserClient()
@@ -60,6 +63,13 @@ export default function RacesPage() {
         .eq('club_id', profile.club_id)
         .order('race_date', { ascending: false })
       setRaces((data as Race[]) ?? [])
+
+      const { data: club } = await supabase
+        .from('clubs')
+        .select('invite_code')
+        .eq('id', profile.club_id)
+        .maybeSingle()
+      setInviteCode((club as { invite_code: string } | null)?.invite_code ?? null)
     }
     setLoading(false)
   }
@@ -67,6 +77,34 @@ export default function RacesPage() {
   useEffect(() => {
     fetchRaces()
   }, [])
+
+  // Close share panel on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (shareRef.current && !shareRef.current.contains(e.target as Node)) {
+        setShowShare(false)
+      }
+    }
+    if (showShare) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showShare])
+
+  function CopyButton({ text }: { text: string }) {
+    const [copied, setCopied] = useState(false)
+    async function copy() {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    }
+    return (
+      <button
+        onClick={copy}
+        className="text-xs px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors flex-shrink-0"
+      >
+        {copied ? '✓ Copied' : 'Copy'}
+      </button>
+    )
+  }
 
   async function handleDelete() {
     if (!deleteTarget) return
@@ -138,9 +176,57 @@ export default function RacesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Races</h1>
           <p className="text-sm text-gray-500 mt-0.5">{races.length} race{races.length !== 1 ? 's' : ''} total</p>
         </div>
-        <Link href="/dashboard/races/new">
-          <Button size="sm">+ New race</Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          {inviteCode && (
+            <div className="relative" ref={shareRef}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowShare((v) => !v)}
+              >
+                📡 Public Calendar
+              </Button>
+              {showShare && (
+                <div className="absolute right-0 top-full mt-2 z-40 w-80 bg-white rounded-xl border border-gray-200 shadow-xl p-4 space-y-4">
+                  <h3 className="text-sm font-semibold text-gray-900">Share Race Calendar</h3>
+
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-gray-600">🔗 Public link</p>
+                    <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-2 py-1.5 border border-gray-200">
+                      <span className="flex-1 text-xs text-gray-700 truncate font-mono">
+                        {typeof window !== 'undefined' ? `${window.location.origin}/races/${inviteCode}` : `/races/${inviteCode}`}
+                      </span>
+                      <CopyButton text={typeof window !== 'undefined' ? `${window.location.origin}/races/${inviteCode}` : `/races/${inviteCode}`} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-gray-600">📋 Embed code</p>
+                    <div className="flex items-start gap-2 bg-gray-50 rounded-lg px-2 py-1.5 border border-gray-200">
+                      <span className="flex-1 text-xs text-gray-700 break-all font-mono">
+                        {`<iframe src="${typeof window !== 'undefined' ? window.location.origin : ''}/races/${inviteCode}/embed" width="100%" height="600" frameborder="0"></iframe>`}
+                      </span>
+                      <CopyButton text={`<iframe src="${typeof window !== 'undefined' ? window.location.origin : ''}/races/${inviteCode}/embed" width="100%" height="600" frameborder="0"></iframe>`} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-gray-600">📡 RSS feed</p>
+                    <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-2 py-1.5 border border-gray-200">
+                      <span className="flex-1 text-xs text-gray-700 truncate font-mono">
+                        {typeof window !== 'undefined' ? `${window.location.origin}/races/${inviteCode}/feed` : `/races/${inviteCode}/feed`}
+                      </span>
+                      <CopyButton text={typeof window !== 'undefined' ? `${window.location.origin}/races/${inviteCode}/feed` : `/races/${inviteCode}/feed`} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <Link href="/dashboard/races/new">
+            <Button size="sm">+ New race</Button>
+          </Link>
+        </div>
       </div>
 
       {races.length === 0 ? (
