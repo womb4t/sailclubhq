@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input'
 function RegisterForm() {
   const searchParams = useSearchParams()
   const joinCode = searchParams.get('join')
+  const raceToken = searchParams.get('race')
 
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -40,7 +41,7 @@ function RegisterForm() {
       return
     }
 
-    window.location.href = joinCode ? `/join/${joinCode}` : '/dashboard'
+    window.location.href = raceToken ? `/race/join/${raceToken}` : joinCode ? `/join/${joinCode}` : '/dashboard'
   }
 
   return (
@@ -58,7 +59,7 @@ function RegisterForm() {
         <Button type="submit" loading={loading} className="w-full" size="lg">Create account</Button>
       </form>
       <p className="text-center text-sm text-gray-500 mt-4">
-        Already have an account? <Link href={joinCode ? `/login?join=${joinCode}` : '/login'} className="text-blue-600 font-medium hover:underline">Sign in</Link>
+        Already have an account? <Link href={joinCode ? `/login?join=${joinCode}${raceToken ? `&race=${raceToken}` : ''}` : '/login'} className="text-blue-600 font-medium hover:underline">Sign in</Link>
       </p>
     </div>
   )

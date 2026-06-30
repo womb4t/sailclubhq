@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input'
 function LoginForm() {
   const searchParams = useSearchParams()
   const joinCode = searchParams.get('join')
+  const raceToken = searchParams.get('race')
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -26,7 +27,7 @@ function LoginForm() {
       setLoading(false)
       return
     }
-    window.location.href = joinCode ? `/join/${joinCode}` : '/dashboard'
+    window.location.href = raceToken ? `/race/join/${raceToken}` : joinCode ? `/join/${joinCode}` : '/dashboard'
   }
 
   return (

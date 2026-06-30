@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getBrowserClient } from '@/lib/supabase/browser'
+import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 
@@ -16,7 +17,7 @@ interface RaceInfo {
   notes: string | null
   vhf_channel: string | null
   safety_info: string | null
-  club: { name: string } | null
+  club: { name: string; invite_code: string } | null
 }
 
 function formatDate(dateStr: string) {
@@ -32,6 +33,8 @@ function extractStartTime(notes: string | null): string | null {
 
 export default function RaceJoinPage() {
   const params = useParams()
+  const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const token = params.token as string
 
   const [race, setRace] = useState<RaceInfo | null>(null)
@@ -48,12 +51,13 @@ export default function RaceJoinPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
+  // Fetch race data regardless of auth (needed for club code on redirect)
   useEffect(() => {
     async function lookupRace() {
       const supabase = getBrowserClient()
       const { data } = await supabase
         .from('races')
-        .select('id, name, race_date, series, status, notes, vhf_channel, safety_info, club:clubs(name)')
+        .select('id, name, race_date, series, status, notes, vhf_channel, safety_info, club:clubs(name, invite_code)')
         .eq('entry_token', token)
         .maybeSingle()
 
@@ -74,7 +78,7 @@ export default function RaceJoinPage() {
       setLoading(false)
     }
     lookupRace()
-  }, [token])
+  }, [token, authLoading, user])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -123,6 +127,14 @@ export default function RaceJoinPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-lg mx-auto px-4 py-8 space-y-4">
+        {/* Back to club link */}
+        {race.club?.invite_code && (
+          <div>
+            <Link href={`/club/${race.club.invite_code}`} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 font-medium">
+              ← Back to club
+            </Link>
+          </div>
+        )}
         {/* Race info header */}
         <div className="text-center">
           {race.club && (
