@@ -50,7 +50,7 @@ export default function SettingsPage() {
   const [editSeriesName, setEditSeriesName] = useState('')
   const [editSeriesDesc, setEditSeriesDesc] = useState('')
   const [editSeriesArchiveDays, setEditSeriesArchiveDays] = useState('30')
-  const [newSeriesArchiveDays, setNewSeriesArchiveDays] = useState('30')
+  const [newSeriesArchiveDays, setNewSeriesArchiveDays] = useState('365')
   const [deleteSeries, setDeleteSeries] = useState<SeriesData | null>(null)
   const [seriesError, setSeriesError] = useState('')
 
@@ -112,7 +112,7 @@ export default function SettingsPage() {
         club_id: club.id,
         name: newSeriesName.trim(),
         description: newSeriesDesc.trim() || null,
-        archive_after_days: parseInt(newSeriesArchiveDays) || 30,
+        archive_after_days: parseInt(newSeriesArchiveDays) || 365,
       })
       .select()
       .single()
@@ -135,13 +135,13 @@ export default function SettingsPage() {
       .update({
         name: editSeriesName.trim(),
         description: editSeriesDesc.trim() || null,
-        archive_after_days: parseInt(editSeriesArchiveDays) || 30,
+        archive_after_days: parseInt(editSeriesArchiveDays) || 365,
       })
       .eq('id', id)
     if (err) {
       setSeriesError(err.message)
     } else {
-      setSeriesList(prev => prev.map(s => s.id === id ? { ...s, name: editSeriesName.trim(), description: editSeriesDesc.trim() || null, archive_after_days: parseInt(editSeriesArchiveDays) || 30 } : s))
+      setSeriesList(prev => prev.map(s => s.id === id ? { ...s, name: editSeriesName.trim(), description: editSeriesDesc.trim() || null, archive_after_days: parseInt(editSeriesArchiveDays) || 365 } : s))
       setEditingSeries(null)
     }
   }
@@ -317,14 +317,11 @@ export default function SettingsPage() {
                           onChange={e => setEditSeriesArchiveDays(e.target.value)}
                           className="text-xs rounded-md border border-gray-200 px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         >
-                          <option value="7">7 days</option>
-                          <option value="14">14 days</option>
                           <option value="30">30 days</option>
-                          <option value="60">60 days</option>
                           <option value="90">90 days</option>
                           <option value="180">6 months</option>
-                          <option value="365">1 year</option>
-                          <option value="0">Never</option>
+                          <option value="365">12 months</option>
+                          <option value="-1">Manual only</option>
                         </select>
                       </div>
                       <div className="flex gap-2">
@@ -340,11 +337,11 @@ export default function SettingsPage() {
                           {!s.is_active && <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">Inactive</span>}
                         </div>
                         {s.description && <p className="text-xs text-gray-400 mt-0.5 truncate">{s.description}</p>}
-                        <p className="text-[10px] text-gray-400 mt-0.5">Archive after: {s.archive_after_days === 0 ? 'Never' : `${s.archive_after_days ?? 30} days`}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">Archive: {s.archive_after_days === -1 ? 'Manual only' : s.archive_after_days === 365 ? '12 months' : s.archive_after_days === 180 ? '6 months' : s.archive_after_days === 90 ? '90 days' : s.archive_after_days === 30 ? '30 days' : `${s.archive_after_days ?? 365} days`}</p>
                       </div>
                       <div className="flex items-center gap-1.5 ml-3 shrink-0">
                         <button
-                          onClick={() => { setEditingSeries(s.id); setEditSeriesName(s.name); setEditSeriesDesc(s.description ?? ''); setEditSeriesArchiveDays(String(s.archive_after_days ?? 30)) }}
+                          onClick={() => { setEditingSeries(s.id); setEditSeriesName(s.name); setEditSeriesDesc(s.description ?? ''); setEditSeriesArchiveDays(String(s.archive_after_days ?? 365)) }}
                           className="text-xs font-medium text-blue-600 hover:text-blue-700 px-1.5 py-1 rounded hover:bg-blue-50"
                         >Edit</button>
                         <button
@@ -386,14 +383,11 @@ export default function SettingsPage() {
                 onChange={e => setNewSeriesArchiveDays(e.target.value)}
                 className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="7">7 days</option>
-                <option value="14">14 days</option>
                 <option value="30">30 days</option>
-                <option value="60">60 days</option>
                 <option value="90">90 days</option>
                 <option value="180">6 months</option>
-                <option value="365">1 year</option>
-                <option value="0">Never</option>
+                <option value="365">12 months</option>
+                <option value="-1">Manual only</option>
               </select>
             </div>
             {seriesError && <p className="text-xs text-red-600">{seriesError}</p>}

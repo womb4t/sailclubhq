@@ -5,7 +5,7 @@ create table race_series (
   name text not null,
   description text,
   is_active boolean default true,
-  archive_after_days integer default 30,
+  archive_after_days integer default 365,
   created_at timestamptz default now(),
   constraint unique_series_name unique(club_id, name)
 );
