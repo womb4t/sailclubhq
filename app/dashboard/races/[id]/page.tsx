@@ -11,6 +11,30 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import type { Race, CourseTemplate } from '@/types/database'
 
+type EntryStatus = 'entered' | 'racing' | 'withdrawn' | 'DNF' | 'OCS' | 'protest'
+
+interface RaceEntry {
+  id: string
+  race_id: string
+  boat_id: string | null
+  class_id: string | null
+  status: EntryStatus
+  helm_name: string | null
+  phone: string | null
+  created_at: string
+  boat: { boat_name: string; sail_number: string | null } | null
+  start_class: { name: string } | null
+}
+
+const entryStatusVariant: Record<EntryStatus, string> = {
+  entered: 'bg-blue-100 text-blue-700',
+  racing: 'bg-green-100 text-green-700',
+  withdrawn: 'bg-gray-100 text-gray-500',
+  DNF: 'bg-amber-100 text-amber-700',
+  OCS: 'bg-red-100 text-red-700',
+  protest: 'bg-purple-100 text-purple-700',
+}
+
 const statusVariant: Record<string, 'default' | 'info' | 'success' | 'warning' | 'danger'> = {
   draft: 'default',
   planned: 'info',
@@ -119,6 +143,12 @@ export default function RaceDetailPage() {
   // Start classes
   const [startClasses, setStartClasses] = useState<StartClass[]>([])
   const [editingClass, setEditingClass] = useState<EditingClass | null>(null)
+
+  // Messages
+  const [messages, setMessages] = useState<{ id: string; message: string; is_headline: boolean; created_at: string }[]>([])
+  const [newMessage, setNewMessage] = useState('')
+  const [isHeadline, setIsHeadline] = useState(false)
+  const [postingMessage, setPostingMessage] = useState(false)
   const [savingClass, setSavingClass] = useState(false)
   const [classError, setClassError] = useState('')
 
@@ -166,6 +196,14 @@ export default function RaceDetailPage() {
 
       if (classes) setStartClasses(classes as StartClass[])
 
+      // Fetch messages
+      const { data: msgs } = await supabase
+        .from('race_messages')
+        .select('id, message, is_headline, created_at')
+        .eq('race_id', id)
+        .order('created_at', { ascending: false })
+      if (msgs) setMessages(msgs)
+
       setLoading(false)
     }
     fetchRace()
@@ -181,6 +219,29 @@ export default function RaceDetailPage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })
+  }
+
+  async function handlePostMessage() {
+    if (!race || !newMessage.trim()) return
+    setPostingMessage(true)
+    const supabase = getBrowserClient()
+    const { data, error: err } = await supabase
+      .from('race_messages')
+      .insert({ race_id: race.id, author_id: user?.id, message: newMessage.trim(), is_headline: isHeadline })
+      .select('id, message, is_headline, created_at')
+      .single()
+    if (!err && data) {
+      setMessages(prev => [data, ...prev])
+      setNewMessage('')
+      setIsHeadline(false)
+    }
+    setPostingMessage(false)
+  }
+
+  async function handleDeleteMessage(msgId: string) {
+    const supabase = getBrowserClient()
+    await supabase.from('race_messages').delete().eq('id', msgId)
+    setMessages(prev => prev.filter(m => m.id !== msgId))
   }
 
   async function handleStatusChange(newStatus: string) {
@@ -414,6 +475,72 @@ export default function RaceDetailPage() {
           </div>
         </Card>
       )}
+
+      {/* Race Messages */}
+      <Card>
+        <CardHeader>
+          <CardTitle>📢 Race Messages</CardTitle>
+        </CardHeader>
+        <div className="space-y-3">
+          {/* Headline messages at top */}
+          {messages.filter(m => m.is_headline).map(m => (
+            <div key={m.id} className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 flex items-start justify-between gap-2">
+              <div>
+                <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">📌 Headline</span>
+                <p className="text-sm font-medium text-gray-900 mt-0.5">{m.message}</p>
+                <p className="text-[10px] text-gray-400 mt-1">{new Date(m.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+              </div>
+              <button onClick={() => handleDeleteMessage(m.id)} className="text-xs text-red-400 hover:text-red-600 shrink-0">×</button>
+            </div>
+          ))}
+
+          {/* Regular messages */}
+          {messages.filter(m => !m.is_headline).map(m => (
+            <div key={m.id} className="border border-gray-100 rounded-lg px-3 py-2 flex items-start justify-between gap-2">
+              <div>
+                <p className="text-sm text-gray-800">{m.message}</p>
+                <p className="text-[10px] text-gray-400 mt-1">{new Date(m.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+              </div>
+              <button onClick={() => handleDeleteMessage(m.id)} className="text-xs text-red-400 hover:text-red-600 shrink-0">×</button>
+            </div>
+          ))}
+
+          {messages.length === 0 && (
+            <p className="text-sm text-gray-400 italic">No messages yet</p>
+          )}
+
+          {/* Post new message */}
+          <div className="border-t border-gray-100 pt-3 space-y-2">
+            <textarea
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Post a message to competitors…"
+              rows={2}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-1.5 text-xs text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={isHeadline}
+                  onChange={(e) => setIsHeadline(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                📌 Headline message
+              </label>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handlePostMessage}
+                loading={postingMessage}
+                disabled={!newMessage.trim()}
+              >
+                Post
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       {/* Course info */}
       {course && (

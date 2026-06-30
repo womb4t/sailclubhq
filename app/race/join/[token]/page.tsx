@@ -17,7 +17,13 @@ interface RaceInfo {
   notes: string | null
   vhf_channel: string | null
   safety_info: string | null
-  club: { name: string; invite_code: string } | null
+  club: { id: string; name: string; invite_code: string } | null
+}
+
+interface StartClass {
+  id: string
+  name: string
+  start_time: string
 }
 
 function formatDate(dateStr: string) {
@@ -38,13 +44,14 @@ export default function RaceJoinPage() {
   const token = params.token as string
 
   const [race, setRace] = useState<RaceInfo | null>(null)
+  const [startClasses, setStartClasses] = useState<StartClass[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
   // Entry form
   const [helmName, setHelmName] = useState('')
   const [boatName, setBoatName] = useState('')
-  const [boatClass, setBoatClass] = useState('')
+  const [classId, setClassId] = useState<string>('')
   const [sailNumber, setSailNumber] = useState('')
   const [phone, setPhone] = useState('')
   const [submitted, setSubmitted] = useState(false)
@@ -57,21 +64,32 @@ export default function RaceJoinPage() {
       const supabase = getBrowserClient()
       const { data } = await supabase
         .from('races')
-        .select('id, name, race_date, series, status, notes, vhf_channel, safety_info, club:clubs(name, invite_code)')
+        .select('id, name, race_date, series, status, notes, vhf_channel, safety_info, club:clubs(id, name, invite_code)')
         .eq('entry_token', token)
         .maybeSingle()
 
-      if (data && (data.status === 'planned' || data.status === 'confirmed')) {
-        setRace({
+      if (data) {
+        const raceData: RaceInfo = {
           ...data,
           club: Array.isArray(data.club) ? data.club[0] : data.club,
-        } as RaceInfo)
-      } else if (data) {
-        // Race exists but not accepting entries
-        setRace({
-          ...data,
-          club: Array.isArray(data.club) ? data.club[0] : data.club,
-        } as RaceInfo)
+        } as RaceInfo
+
+        setRace(raceData)
+
+        // Fetch start classes for this race
+        const { data: classes } = await supabase
+          .from('start_classes')
+          .select('id, name, start_time')
+          .eq('race_id', data.id)
+          .order('start_time', { ascending: true })
+
+        if (classes && classes.length > 0) {
+          setStartClasses(classes as StartClass[])
+          // Auto-select if only one class
+          if (classes.length === 1) {
+            setClassId(classes[0].id)
+          }
+        }
       } else {
         setNotFound(true)
       }
@@ -85,9 +103,9 @@ export default function RaceJoinPage() {
     if (authLoading || loading) return
     if (!user) {
       const clubCode = race?.club?.invite_code
-      const params = new URLSearchParams({ race: token })
-      if (clubCode) params.set('join', clubCode)
-      router.replace(`/login?${params.toString()}`)
+      const redirectParams = new URLSearchParams({ race: token })
+      if (clubCode) redirectParams.set('join', clubCode)
+      router.replace(`/login?${redirectParams.toString()}`)
     }
   }, [authLoading, loading, user, race, token, router])
 
@@ -99,9 +117,101 @@ export default function RaceJoinPage() {
     setError('')
     setSubmitting(true)
 
-    // For now, store entry in a simple format via notes or a future entries table
-    // TODO: proper race_entries integration once boats table is populated
-    setSubmitted(true)
+    try {
+      const supabase = getBrowserClient()
+
+      // Get club_id from the race's club
+      const clubId = race.club?.id
+      if (!clubId) {
+        setError('Unable to determine club for this race.')
+        setSubmitting(false)
+        return
+      }
+
+      // Find or create boat record
+      let boatId: string | null = null
+
+      if (boatName.trim()) {
+        // Try to find existing boat
+        const { data: existingBoat } = await supabase
+          .from('boats')
+          .select('id')
+          .eq('club_id', clubId)
+          .eq('boat_name', boatName.trim())
+          .eq('owner_name', helmName.trim())
+          .maybeSingle()
+
+        if (existingBoat) {
+          boatId = existingBoat.id
+          // Update sail number if provided
+          if (sailNumber.trim()) {
+            await supabase
+              .from('boats')
+              .update({ sail_number: sailNumber.trim() })
+              .eq('id', boatId)
+          }
+        } else {
+          // Create new boat
+          const { data: newBoat, error: boatError } = await supabase
+            .from('boats')
+            .insert({
+              club_id: clubId,
+              owner_name: helmName.trim(),
+              boat_name: boatName.trim(),
+              sail_number: sailNumber.trim() || null,
+            })
+            .select('id')
+            .single()
+
+          if (boatError) {
+            setError(boatError.message)
+            setSubmitting(false)
+            return
+          }
+          boatId = newBoat.id
+        }
+      }
+
+      // Check for duplicate entry (same boat in same race)
+      if (boatId) {
+        const { data: existing } = await supabase
+          .from('race_entries')
+          .select('id')
+          .eq('race_id', race.id)
+          .eq('boat_id', boatId)
+          .maybeSingle()
+
+        if (existing) {
+          setError('This boat is already entered in this race.')
+          setSubmitting(false)
+          return
+        }
+      }
+
+      // Create race entry
+      const entryPayload: Record<string, unknown> = {
+        race_id: race.id,
+        boat_id: boatId,
+        class_id: classId || null,
+        status: 'entered',
+        helm_name: helmName.trim(),
+        phone: phone.trim() || null,
+      }
+
+      const { error: entryError } = await supabase
+        .from('race_entries')
+        .insert(entryPayload)
+
+      if (entryError) {
+        setError(entryError.message)
+        setSubmitting(false)
+        return
+      }
+
+      setSubmitted(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    }
     setSubmitting(false)
   }
 
@@ -247,17 +357,6 @@ export default function RaceJoinPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Class</label>
-                  <input
-                    value={boatClass}
-                    onChange={(e) => setBoatClass(e.target.value)}
-                    placeholder="e.g. Laser, RS200"
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
                   <label className="text-sm font-medium text-gray-700">Sail number</label>
                   <input
                     value={sailNumber}
@@ -266,15 +365,42 @@ export default function RaceJoinPage() {
                     className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
+              </div>
+
+              {/* Class selector — only show if start classes exist */}
+              {startClasses.length > 1 && (
                 <div>
-                  <label className="text-sm font-medium text-gray-700">Phone</label>
-                  <input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Emergency contact"
-                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  <label className="text-sm font-medium text-gray-700">Class</label>
+                  <select
+                    value={classId}
+                    onChange={(e) => setClassId(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select a class…</option>
+                    {startClasses.map((cls) => (
+                      <option key={cls.id} value={cls.id}>{cls.name}</option>
+                    ))}
+                  </select>
                 </div>
+              )}
+              {startClasses.length === 1 && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Class</label>
+                  <p className="mt-1 text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+                    {startClasses[0].name}
+                  </p>
+                </div>
+              )}
+
+              <div>
+                <label className="text-sm font-medium text-gray-700">Phone</label>
+                <input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="Emergency contact"
+                  type="tel"
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
 
               {error && <p className="text-sm text-red-600">{error}</p>}
