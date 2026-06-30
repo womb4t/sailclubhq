@@ -731,18 +731,38 @@ export default function NewCoursePage() {
                 </div>
               </div>
 
-              {/* Distance display */}
+              {/* Distance + estimated times */}
               {courseDistanceNm > 0 && (
-                <div className="bg-gray-50 rounded-xl p-3 flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">Total distance</span>
-                  <div className="text-right">
-                    <span className="text-lg font-bold text-blue-700">{courseDistanceNm.toFixed(2)}</span>
-                    <span className="text-sm text-gray-500 ml-1">nm</span>
-                    {laps && parseInt(laps) > 1 && (
-                      <div className="text-xs text-gray-400">
-                        {(courseDistanceNm / (parseInt(laps) || 1)).toFixed(2)} nm per lap × {laps}
-                      </div>
-                    )}
+                <div className="bg-gray-50 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">Total distance</span>
+                    <div className="text-right">
+                      <span className="text-lg font-bold text-blue-700">{courseDistanceNm.toFixed(2)}</span>
+                      <span className="text-sm text-gray-500 ml-1">nm</span>
+                      {laps && parseInt(laps) > 1 && (
+                        <div className="text-xs text-gray-400">
+                          {(courseDistanceNm / (parseInt(laps) || 1)).toFixed(2)} nm per lap × {laps}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="border-t border-gray-200 pt-2">
+                    <p className="text-xs font-medium text-gray-500 mb-1.5">⏱ Estimated race time</p>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      {[3, 5, 8].map(speed => {
+                        const hrs = courseDistanceNm / speed
+                        const h = Math.floor(hrs)
+                        const m = Math.round((hrs - h) * 60)
+                        return (
+                          <div key={speed} className="bg-white rounded-lg py-1.5 px-1 border border-gray-100">
+                            <div className="text-xs text-gray-400">{speed} kts</div>
+                            <div className="text-sm font-semibold text-gray-800">
+                              {h > 0 ? `${h}h ${m}m` : `${m}m`}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
               )}

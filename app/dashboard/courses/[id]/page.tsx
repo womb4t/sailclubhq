@@ -157,6 +157,47 @@ export default function CourseDetailPage() {
         </Card>
       )}
 
+      {/* Distance + estimated times */}
+      {totalDistanceNm > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Distance &amp; timing</CardTitle>
+          </CardHeader>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-600">Total distance</span>
+              <div className="text-right">
+                <span className="text-lg font-bold text-blue-700">{totalDistanceNm.toFixed(2)}</span>
+                <span className="text-sm text-gray-500 ml-1">nm</span>
+                {course.laps && course.laps > 1 && (
+                  <div className="text-xs text-gray-400">
+                    {(totalDistanceNm / course.laps).toFixed(2)} nm per lap × {course.laps}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="border-t border-gray-100 pt-3">
+              <p className="text-xs font-medium text-gray-500 mb-2">⏱ Estimated race time</p>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {[3, 5, 8].map(speed => {
+                  const hrs = totalDistanceNm / speed
+                  const h = Math.floor(hrs)
+                  const m = Math.round((hrs - h) * 60)
+                  return (
+                    <div key={speed} className="bg-gray-50 rounded-lg py-2 px-1 border border-gray-100">
+                      <div className="text-xs text-gray-400">{speed} kts</div>
+                      <div className="text-sm font-semibold text-gray-800">
+                        {h > 0 ? `${h}h ${m}m` : `${m}m`}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Course info */}
       <Card>
         <CardHeader>
