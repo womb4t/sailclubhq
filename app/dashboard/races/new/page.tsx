@@ -230,12 +230,21 @@ export default function NewRacePage() {
                 onChange={(e) => setRaceDate(e.target.value)}
                 required
               />
-              <Input
-                label="Start time"
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-              />
+              <div>
+                <label className="text-sm font-medium text-gray-700">Start time</label>
+                <select
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select time…</option>
+                  {Array.from({ length: 96 }, (_, i) => {
+                    const h = Math.floor(i / 4).toString().padStart(2, '0')
+                    const m = ((i % 4) * 15).toString().padStart(2, '0')
+                    return <option key={i} value={`${h}:${m}`}>{h}:{m}</option>
+                  })}
+                </select>
+              </div>
             </div>
           </div>
         </Card>
