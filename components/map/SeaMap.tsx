@@ -218,15 +218,27 @@ export default function SeaMap({
         weight: 2,
       })
 
-      // Short ID tooltip on hover
-      if (m.label) {
-        circle.bindTooltip(`<strong>${m.label}</strong>`, {
-          permanent: false,
-          direction: 'top',
-          offset: [0, -10],
-          className: 'mark-tooltip',
-        })
-      }
+      // Tooltip on hover — name, short ID, coords
+      const tLatDir = m.lat >= 0 ? 'N' : 'S'
+      const tLonDir = m.lon >= 0 ? 'E' : 'W'
+      const tAbsLat = Math.abs(m.lat)
+      const tAbsLon = Math.abs(m.lon)
+      const tLatDeg = Math.floor(tAbsLat)
+      const tLatMin = ((tAbsLat - tLatDeg) * 60).toFixed(3)
+      const tLonDeg = Math.floor(tAbsLon)
+      const tLonMin = ((tAbsLon - tLonDeg) * 60).toFixed(3)
+      const tCoord = `${tLatDir}${String(tLatDeg).padStart(2,'0')}°${String(tLatMin).padStart(6,'0')}' ${tLonDir}${String(tLonDeg).padStart(3,'0')}°${String(tLonMin).padStart(6,'0')}'`
+
+      const tooltipHtml = `<div style="line-height:1.4">
+        <strong>${m.name || m.label || 'Mark'}</strong>${m.label && m.name ? ` <span style="color:#888">(${m.label})</span>` : ''}
+        <br/><span style="font-family:monospace;font-size:11px;color:#555">${tCoord}</span>
+      </div>`
+
+      circle.bindTooltip(tooltipHtml, {
+        permanent: false,
+        direction: 'top',
+        offset: [0, -10],
+      })
 
       // Rich popup on click
       const latDir = m.lat >= 0 ? 'N' : 'S'
