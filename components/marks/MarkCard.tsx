@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Mark } from '@/types/database'
 import { Card } from '@/components/ui/Card'
 import { Badge, RoundingBadge } from '@/components/ui/Badge'
+import { decimalToDDM } from '@/lib/coordinates'
 
 interface MarkCardProps {
   mark: Mark
@@ -23,7 +24,7 @@ export function MarkCard({ mark, showCoords = true }: MarkCardProps) {
               <h3 className="font-medium text-gray-900 text-sm">{mark.name}</h3>
               {showCoords && (
                 <p className="text-xs text-gray-500 mt-0.5 font-mono">
-                  {Number(mark.lat).toFixed(5)}°, {Number(mark.lon).toFixed(5)}°
+                  {decimalToDDM(Number(mark.lat), Number(mark.lon)).full}
                 </p>
               )}
             </div>

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import SeaMap from '@/components/map/DynamicSeaMap'
+import { decimalToDDM } from '@/lib/coordinates'
 import type { Mark, MarkType, RoundingSide } from '@/types/database'
 
 export default function NewMarkPage() {
@@ -141,8 +142,8 @@ export default function NewMarkPage() {
         />
         {selectedPosition && (
           <div className="px-4 py-2 bg-blue-50 border-t border-blue-100 flex items-center justify-between">
-            <p className="text-xs font-mono text-blue-700">
-              {parseFloat(lat).toFixed(6)}°N, {parseFloat(lon).toFixed(6)}°E
+            <p className="text-sm font-mono text-blue-700 font-medium">
+              {decimalToDDM(parseFloat(lat), parseFloat(lon)).full}
             </p>
             <button
               type="button"

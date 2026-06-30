@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -24,8 +24,65 @@ interface SeaMapProps {
   className?: string
 }
 
+/**
+ * Draw a simple graticule grid on the map
+ */
+function addGraticule(map: L.Map) {
+  const graticuleGroup = L.layerGroup()
+
+  function drawGrid() {
+    graticuleGroup.clearLayers()
+
+    const bounds = map.getBounds()
+    const zoom = map.getZoom()
+
+    // Determine grid spacing based on zoom level
+    let interval: number
+    if (zoom >= 16) interval = 0.001      // ~100m
+    else if (zoom >= 14) interval = 0.005  // ~500m
+    else if (zoom >= 12) interval = 0.01   // ~1km
+    else if (zoom >= 10) interval = 0.05   // ~5km
+    else if (zoom >= 8) interval = 0.1     // ~10km
+    else if (zoom >= 6) interval = 0.5     // ~50km
+    else if (zoom >= 4) interval = 1       // ~100km
+    else interval = 5
+
+    const south = Math.floor(bounds.getSouth() / interval) * interval
+    const north = Math.ceil(bounds.getNorth() / interval) * interval
+    const west = Math.floor(bounds.getWest() / interval) * interval
+    const east = Math.ceil(bounds.getEast() / interval) * interval
+
+    // Horizontal lines (latitude)
+    for (let lat = south; lat <= north; lat += interval) {
+      L.polyline([[lat, west], [lat, east]], {
+        color: '#666',
+        weight: 0.5,
+        opacity: 0.4,
+        dashArray: '4,4',
+      }).addTo(graticuleGroup)
+    }
+
+    // Vertical lines (longitude)
+    for (let lon = west; lon <= east; lon += interval) {
+      L.polyline([[south, lon], [north, lon]], {
+        color: '#666',
+        weight: 0.5,
+        opacity: 0.4,
+        dashArray: '4,4',
+      }).addTo(graticuleGroup)
+    }
+  }
+
+  map.on('moveend', drawGrid)
+  map.on('zoomend', drawGrid)
+  drawGrid()
+
+  graticuleGroup.addTo(map)
+  return graticuleGroup
+}
+
 export default function SeaMap({
-  center = [51.35, 0.73], // Default: Thames Estuary / Medway area
+  center = [51.35, 0.73],
   zoom = 13,
   markers = [],
   onMapClick,
@@ -39,6 +96,7 @@ export default function SeaMap({
   const containerRef = useRef<HTMLDivElement>(null)
   const markerRef = useRef<L.Marker | null>(null)
   const [mapReady, setMapReady] = useState(false)
+  const [locating, setLocating] = useState(false)
 
   // Initialise map
   useEffect(() => {
@@ -47,24 +105,33 @@ export default function SeaMap({
     const map = L.map(containerRef.current, {
       center,
       zoom,
-      zoomControl: true,
+      zoomControl: false,
     })
+
+    // Zoom control top-right
+    L.control.zoom({ position: 'topright' }).addTo(map)
+
+    // Scale bar
+    L.control.scale({ position: 'bottomleft', metric: true, imperial: true }).addTo(map)
 
     // Base layer: OpenStreetMap
     const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
       maxZoom: 19,
     })
 
     // Nautical overlay: OpenSeaMap
     const seaMapLayer = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="http://www.openseamap.org">OpenSeaMap</a>',
+      attribution: ' | <a href="http://www.openseamap.org">OpenSeaMap</a>',
       maxZoom: 19,
       opacity: 0.8,
     })
 
     osmLayer.addTo(map)
     seaMapLayer.addTo(map)
+
+    // Add graticule grid
+    addGraticule(map)
 
     mapRef.current = map
     setMapReady(true)
@@ -119,7 +186,7 @@ export default function SeaMap({
     }
   }, [selectedPosition, draggableMarker, onMarkerDrag, mapReady])
 
-  // Render existing marks as small circles
+  // Render existing marks
   useEffect(() => {
     if (!mapRef.current) return
 
@@ -152,11 +219,46 @@ export default function SeaMap({
     }
   }, [markers, mapReady])
 
+  // Go to current location
+  const goToMyLocation = useCallback(() => {
+    if (!mapRef.current || !navigator.geolocation) return
+
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        mapRef.current?.flyTo([pos.coords.latitude, pos.coords.longitude], 15, {
+          duration: 1.5,
+        })
+        setLocating(false)
+      },
+      () => {
+        setLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }, [])
+
   return (
-    <div
-      ref={containerRef}
-      style={{ height }}
-      className={`rounded-xl overflow-hidden border border-gray-200 ${className}`}
-    />
+    <div className="relative">
+      <div
+        ref={containerRef}
+        style={{ height }}
+        className={`rounded-xl overflow-hidden border border-gray-200 ${className}`}
+      />
+      {/* My Location button */}
+      <button
+        type="button"
+        onClick={goToMyLocation}
+        disabled={locating}
+        className="absolute top-3 left-3 z-[1000] bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 shadow-md hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+        title="Go to my location"
+      >
+        {locating ? (
+          <span className="animate-pulse">📍 Locating...</span>
+        ) : (
+          <span>📍 My location</span>
+        )}
+      </button>
+    </div>
   )
 }
