@@ -752,7 +752,7 @@ export default function NewCoursePage() {
         </div>
 
         {/* Status pills */}
-        <div className="absolute top-14 right-3 z-[1000] flex flex-col gap-1">
+        <div className="absolute top-52 right-3 z-[1000] flex flex-col gap-1">
           <div className={`text-xs px-2 py-1 rounded-md font-medium ${startDone ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-500'}`}>
             {startDone ? '✓ Start' : '○ Start'}
           </div>
