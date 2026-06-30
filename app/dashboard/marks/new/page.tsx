@@ -49,6 +49,7 @@ export default function NewMarkPage() {
       .from('marks')
       .insert({
         club_id: profile.club_id,
+        created_by: user.id,
         name: name.trim(),
         short_id: shortId.trim().toUpperCase(),
         lat: lat ? parseFloat(lat) : 0,
