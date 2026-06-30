@@ -186,9 +186,15 @@ export default function SeaMap({
     }
   }, [selectedPosition, draggableMarker, onMarkerDrag, mapReady])
 
-  // Render existing marks
+  // Render existing marks and fly to them
   useEffect(() => {
     if (!mapRef.current) return
+
+    // Fly to markers bounds if we have them
+    if (markers.length > 0) {
+      const bounds = L.latLngBounds(markers.map(m => [m.lat, m.lon] as [number, number]))
+      mapRef.current.flyToBounds(bounds.pad(0.3), { duration: 1, maxZoom: 15 })
+    }
 
     const layerGroup = L.layerGroup()
 
