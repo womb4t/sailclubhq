@@ -130,7 +130,7 @@ export default function CourseBuilderMap({
     initDoneRef.current = true
 
     const map = L.map(containerRef.current, { center, zoom, zoomControl: false })
-    L.control.zoom({ position: 'topright' }).addTo(map)
+    L.control.zoom({ position: 'topleft' }).addTo(map)
     L.control.scale({ position: 'bottomright', metric: true, imperial: true }).addTo(map)
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

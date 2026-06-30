@@ -425,7 +425,7 @@ export default function NewCoursePage() {
 
         {/* Coordinate display */}
         {cursorCoord && (
-          <div className="absolute top-3 left-3 z-[1000] bg-blue-950/90 text-white text-xs font-mono px-3 py-1.5 rounded-lg pointer-events-none">
+          <div className="absolute top-3 left-20 z-[1000] bg-blue-950/90 text-white text-xs font-mono px-3 py-1.5 rounded-lg pointer-events-none">
             {cursorCoord}
           </div>
         )}
