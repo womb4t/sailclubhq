@@ -43,6 +43,7 @@ export default function RacesPage() {
   const [deleting, setDeleting] = useState(false)
   const [inviteCode, setInviteCode] = useState<string | null>(null)
   const [showShare, setShowShare] = useState(false)
+  const [seriesFilter, setSeriesFilter] = useState<string>('all')
   const shareRef = useRef<HTMLDivElement>(null)
 
   async function fetchRaces() {
@@ -116,10 +117,18 @@ export default function RacesPage() {
     fetchRaces()
   }
 
+  // Series filter
+  const allSeries = Array.from(new Set(races.filter(r => r.series).map(r => r.series!))).sort()
+  const filtered = seriesFilter === 'all' ? races : races.filter(r => r.series === seriesFilter)
+
   const today = new Date().toISOString().split('T')[0]
-  const activeRaces = races.filter((r) => r.status === 'confirmed' && r.race_date === today)
-  const upcomingRaces = races.filter((r) => (r.status === 'planned' || r.status === 'draft') || (r.status === 'confirmed' && r.race_date !== today))
-  const pastRaces = races.filter((r) => r.status === 'completed' || r.status === 'cancelled' || r.status === 'archived')
+  const activeRaces = filtered.filter((r) => r.status === 'confirmed' && r.race_date === today)
+  const upcomingRaces = filtered
+    .filter((r) => (r.status === 'planned' || r.status === 'draft') || (r.status === 'confirmed' && r.race_date !== today))
+    .sort((a, b) => a.race_date.localeCompare(b.race_date))
+  const pastRaces = filtered
+    .filter((r) => r.status === 'completed' || r.status === 'cancelled' || r.status === 'archived')
+    .sort((a, b) => b.race_date.localeCompare(a.race_date))
 
   if (loading) {
     return (
@@ -230,6 +239,35 @@ export default function RacesPage() {
           </Link>
         </div>
       </div>
+
+      {/* Series filter */}
+      {allSeries.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <button
+            onClick={() => setSeriesFilter('all')}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+              seriesFilter === 'all'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            All Series
+          </button>
+          {allSeries.map(s => (
+            <button
+              key={s}
+              onClick={() => setSeriesFilter(s)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+                seriesFilter === s
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
 
       {races.length === 0 ? (
         <div className="text-center py-16">
