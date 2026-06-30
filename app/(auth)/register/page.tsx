@@ -1,50 +1,28 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { signUp } from '@/app/actions/auth'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 
 export default function RegisterPage() {
-  const router = useRouter()
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [isPending, startTransition] = useTransition()
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    setLoading(true)
 
-    const supabase = createClient()
-    const { error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName },
-      },
+    startTransition(async () => {
+      const result = await signUp(email, password, fullName)
+      if (result?.error) {
+        setError(result.error)
+      }
     })
-
-    if (signUpError) {
-      setError(signUpError.message)
-      setLoading(false)
-      return
-    }
-
-    // Email confirmation disabled — sign in immediately after signup
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-    if (signInError) {
-      setError(signInError.message)
-      setLoading(false)
-      return
-    }
-
-    router.refresh()
-    window.location.href = '/dashboard'
   }
 
   return (
@@ -91,7 +69,7 @@ export default function RegisterPage() {
             <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
           )}
 
-          <Button type="submit" loading={loading} className="w-full" size="lg">
+          <Button type="submit" loading={isPending} className="w-full" size="lg">
             Create account
           </Button>
         </form>

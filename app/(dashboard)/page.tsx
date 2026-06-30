@@ -8,12 +8,12 @@ export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Fetch profile
+  // Fetch profile — may be null for brand new users
   const { data: profile } = await supabase
     .from('profiles')
     .select('*, clubs(*)')
     .eq('id', user!.id)
-    .single()
+    .maybeSingle()
 
   // Fetch recent races
   const { data: recentRaces } = await supabase
