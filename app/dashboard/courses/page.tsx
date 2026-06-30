@@ -50,7 +50,7 @@ export default function CoursesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Courses</h1>
           <p className="text-sm text-gray-500 mt-0.5">{templates.length} template{templates.length !== 1 ? 's' : ''}</p>
         </div>
-        <Link href="/courses/new">
+        <Link href="/dashboard/courses/new">
           <Button size="sm">+ New course</Button>
         </Link>
       </div>
@@ -62,7 +62,7 @@ export default function CoursesPage() {
           <p className="text-sm text-gray-400 mb-6">
             Build named course templates from your marks catalogue.
           </p>
-          <Link href="/courses/new">
+          <Link href="/dashboard/courses/new">
             <Button>Build first course</Button>
           </Link>
         </div>

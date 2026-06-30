@@ -10,14 +10,14 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: '/', label: 'Dashboard', icon: '🏠' },
-  { href: '/races', label: 'Races', icon: '🏁' },
-  { href: '/marks', label: 'Marks', icon: '📍' },
-  { href: '/courses', label: 'Courses', icon: '🗺️' },
+  { href: '/dashboard', label: 'Dashboard', icon: '🏠' },
+  { href: '/dashboard/races', label: 'Races', icon: '🏁' },
+  { href: '/dashboard/marks', label: 'Marks', icon: '📍' },
+  { href: '/dashboard/courses', label: 'Courses', icon: '🗺️' },
 ]
 
 function isActive(pathname: string, href: string): boolean {
-  if (href === '/') return pathname === '/'
+  if (href === '/dashboard') return pathname === '/dashboard'
   return pathname === href || pathname.startsWith(href)
 }
 

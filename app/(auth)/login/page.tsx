@@ -22,7 +22,7 @@ export default function LoginPage() {
       setLoading(false)
       return
     }
-    window.location.href = '/'
+    window.location.href = '/dashboard'
   }
 
   return (

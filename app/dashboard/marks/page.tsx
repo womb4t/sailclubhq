@@ -51,7 +51,7 @@ export default function MarksPage() {
           <h1 className="text-2xl font-bold text-gray-900">Marks</h1>
           <p className="text-sm text-gray-500 mt-0.5">{marks.length} mark{marks.length !== 1 ? 's' : ''} in catalogue</p>
         </div>
-        <Link href="/marks/new">
+        <Link href="/dashboard/marks/new">
           <Button size="sm">+ Add mark</Button>
         </Link>
       </div>
@@ -73,7 +73,7 @@ export default function MarksPage() {
           <p className="text-sm text-gray-400 mb-6">
             Add your club&apos;s virtual and physical marks to build your catalogue.
           </p>
-          <Link href="/marks/new">
+          <Link href="/dashboard/marks/new">
             <Button>Add first mark</Button>
           </Link>
         </div>

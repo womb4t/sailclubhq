@@ -1,9 +1,30 @@
+'use client'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useAuth } from '@/context/AuthContext'
 
-export default function LandingPage() {
+export default function RootPage() {
+  const { user, loading } = useAuth()
+  const [redirecting, setRedirecting] = useState(false)
+
+  useEffect(() => {
+    if (!loading && user) {
+      setRedirecting(true)
+      window.location.href = '/dashboard'
+    }
+  }, [user, loading])
+
+  if (loading || redirecting) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 flex items-center justify-center">
+        <div className="text-blue-200 text-sm">Loading...</div>
+      </div>
+    )
+  }
+
+  // Not logged in — show landing page
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-950 via-blue-900 to-blue-800 flex flex-col items-center justify-center px-4">
-      {/* Logo / wordmark */}
       <div className="text-center mb-10">
         <div className="inline-flex items-center gap-2 mb-4">
           <span className="text-4xl">⛵</span>
@@ -12,7 +33,6 @@ export default function LandingPage() {
         <p className="text-blue-200 mt-2 text-lg">Race management for sailing clubs</p>
       </div>
 
-      {/* Feature highlights */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl w-full mb-10">
         {[
           { icon: '📍', title: 'Marks Catalogue', desc: 'Virtual & physical marks with GPS coords' },
@@ -27,7 +47,6 @@ export default function LandingPage() {
         ))}
       </div>
 
-      {/* CTA */}
       <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
         <Link
           href="/register"

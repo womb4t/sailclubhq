@@ -54,7 +54,7 @@ export default function RacesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Races</h1>
           <p className="text-sm text-gray-500 mt-0.5">{races.length} race{races.length !== 1 ? 's' : ''} total</p>
         </div>
-        <Link href="/races/new">
+        <Link href="/dashboard/races/new">
           <Button size="sm">+ New race</Button>
         </Link>
       </div>
@@ -66,7 +66,7 @@ export default function RacesPage() {
           <p className="text-sm text-gray-400 mb-6">
             Create your first race to get started.
           </p>
-          <Link href="/races/new">
+          <Link href="/dashboard/races/new">
             <Button>Create first race</Button>
           </Link>
         </div>
