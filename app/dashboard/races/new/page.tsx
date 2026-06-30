@@ -1,24 +1,87 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { getBrowserClient } from '@/lib/supabase/browser'
+import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
 export default function NewRacePage() {
   const router = useRouter()
+  const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [clubDefaults, setClubDefaults] = useState<{ vhf_channel: string | null }>({ vhf_channel: null })
+
+  const today = new Date()
+  const dayName = DAY_NAMES[today.getDay()]
 
   const [name, setName] = useState('')
   const [raceNumber, setRaceNumber] = useState('')
   const [series, setSeries] = useState('')
-  const [raceDate, setRaceDate] = useState(new Date().toISOString().split('T')[0])
+  const [raceDate, setRaceDate] = useState(today.toISOString().split('T')[0])
+  const [startTime, setStartTime] = useState('')
   const [vhfChannel, setVhfChannel] = useState('')
   const [safetyInfo, setSafetyInfo] = useState('')
   const [notes, setNotes] = useState('')
+
+  // Auto-generate name and race number from existing races
+  useEffect(() => {
+    if (!user) return
+
+    async function fetchDefaults() {
+      const supabase = getBrowserClient()
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('club_id')
+        .eq('id', user!.id)
+        .maybeSingle()
+
+      if (!profile?.club_id) return
+
+      // Get club defaults (VHF channel)
+      const { data: club } = await supabase
+        .from('clubs')
+        .select('vhf_channel')
+        .eq('id', profile.club_id)
+        .single()
+
+      if (club?.vhf_channel) {
+        setClubDefaults({ vhf_channel: club.vhf_channel })
+        setVhfChannel(club.vhf_channel)
+      }
+
+      // Count existing races for this day-of-week pattern to auto-generate
+      const { data: races } = await supabase
+        .from('races')
+        .select('name, race_number, series')
+        .eq('club_id', profile.club_id)
+        .order('race_date', { ascending: false })
+        .limit(20)
+
+      if (races && races.length > 0) {
+        // Find the highest race number and increment
+        const maxNum = Math.max(0, ...races.map(r => r.race_number ?? 0))
+        setRaceNumber(String(maxNum + 1))
+
+        // Check if there's a common series name (most recent)
+        const lastSeries = races.find(r => r.series)?.series
+        if (lastSeries) setSeries(lastSeries)
+
+        // Auto-generate name: "Wednesday Evening Race 4"
+        setName(`${dayName} Race ${maxNum + 1}`)
+      } else {
+        setRaceNumber('1')
+        setName(`${dayName} Race 1`)
+      }
+    }
+
+    fetchDefaults()
+  }, [user, dayName])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -27,8 +90,7 @@ export default function NewRacePage() {
     setError('')
     setLoading(true)
 
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const supabase = getBrowserClient()
     if (!user) { router.push('/login'); return }
 
     const { data: profile } = await supabase
@@ -43,7 +105,7 @@ export default function NewRacePage() {
       return
     }
 
-    const { data: race, error: insertError } = await supabase
+    const { error: insertError } = await supabase
       .from('races')
       .insert({
         club_id: profile.club_id,
@@ -56,8 +118,6 @@ export default function NewRacePage() {
         notes: notes.trim() || null,
         status: 'draft',
       })
-      .select()
-      .single()
 
     if (insertError) {
       setError(insertError.message)
@@ -65,7 +125,7 @@ export default function NewRacePage() {
       return
     }
 
-    router.push(`/races/${race.id}`)
+    router.push('/dashboard/races')
   }
 
   return (
@@ -104,13 +164,22 @@ export default function NewRacePage() {
                 placeholder="Summer Series"
               />
             </div>
-            <Input
-              label="Race date"
-              type="date"
-              value={raceDate}
-              onChange={(e) => setRaceDate(e.target.value)}
-              required
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Race date"
+                type="date"
+                value={raceDate}
+                onChange={(e) => setRaceDate(e.target.value)}
+                required
+              />
+              <Input
+                label="Start time"
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                placeholder="18:30"
+              />
+            </div>
           </div>
         </Card>
 
@@ -124,7 +193,7 @@ export default function NewRacePage() {
               value={vhfChannel}
               onChange={(e) => setVhfChannel(e.target.value)}
               placeholder="M2"
-              hint="Displayed to competitors"
+              hint={clubDefaults.vhf_channel ? `Club default: ${clubDefaults.vhf_channel}` : 'Displayed to competitors'}
             />
             <div>
               <label className="text-sm font-medium text-gray-700">Safety information</label>

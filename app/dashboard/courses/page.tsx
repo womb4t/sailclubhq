@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { getBrowserClient } from '@/lib/supabase/browser'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import type { CourseTemplate } from '@/types/database'
@@ -12,7 +12,7 @@ export default function CoursesPage() {
 
   useEffect(() => {
     async function fetchData() {
-      const supabase = createClient()
+      const supabase = getBrowserClient()
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) { setLoading(false); return }
 

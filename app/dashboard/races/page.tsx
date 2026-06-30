@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { getBrowserClient } from '@/lib/supabase/browser'
 import { RaceCard } from '@/components/races/RaceCard'
 import { Button } from '@/components/ui/Button'
 import type { Race } from '@/types/database'
@@ -12,7 +12,7 @@ export default function RacesPage() {
 
   useEffect(() => {
     async function fetchData() {
-      const supabase = createClient()
+      const supabase = getBrowserClient()
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) { setLoading(false); return }
 
