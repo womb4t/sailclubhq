@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/context/AuthContext'
 import { getBrowserClient } from '@/lib/supabase/browser'
@@ -16,33 +16,44 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [user, loading])
 
-  useEffect(() => {
+  const checkClub = useCallback(async () => {
     if (!user) return
 
-    async function checkClub() {
-      const supabase = getBrowserClient()
+    const supabase = getBrowserClient()
+
+    // Retry up to 3 times with small delay (handles race condition after onboarding)
+    for (let attempt = 0; attempt < 3; attempt++) {
       const { data: profile } = await supabase
         .from('profiles')
         .select('club_id')
-        .eq('id', user!.id)
+        .eq('id', user.id)
         .maybeSingle()
 
       if (profile?.club_id) {
         setHasClub(true)
-      } else {
-        setHasClub(false)
-        // Redirect to onboarding unless already there
-        if (!pathname.startsWith('/dashboard/onboarding')) {
-          window.location.href = '/dashboard/onboarding'
-        }
+        setCheckingClub(false)
+        return
       }
-      setCheckingClub(false)
+
+      // Wait briefly before retry
+      if (attempt < 2) {
+        await new Promise(r => setTimeout(r, 500))
+      }
     }
 
-    checkClub()
+    // After retries, still no club
+    setHasClub(false)
+    if (!pathname.startsWith('/dashboard/onboarding')) {
+      window.location.href = '/dashboard/onboarding'
+    }
+    setCheckingClub(false)
   }, [user, pathname])
 
-  if (loading || (!user)) {
+  useEffect(() => {
+    checkClub()
+  }, [checkClub])
+
+  if (loading || !user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-gray-400 text-sm">Loading...</div>
@@ -50,7 +61,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // While checking club, show loading (unless on onboarding page)
   if (checkingClub && !pathname.startsWith('/dashboard/onboarding')) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -59,12 +69,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     )
   }
 
-  // On onboarding page, always show it
   if (pathname.startsWith('/dashboard/onboarding')) {
     return <>{children}</>
   }
 
-  // Everywhere else, only show if has club
   if (!hasClub) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
