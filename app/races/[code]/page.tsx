@@ -203,7 +203,7 @@ function RaceCard({ race }: { race: Race }) {
         </div>
         {canEnter && (
           <Link
-            href={`/join/${race.entry_token}`}
+            href={`/race/join/${race.entry_token}`}
             className="flex-shrink-0 inline-flex items-center gap-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-1.5 transition-colors"
           >
             Enter ↗

@@ -172,7 +172,7 @@ export default function RaceDetailPage() {
   }, [id, user])
 
   const entryLink = race
-    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/join/${race.entry_token}`
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/race/join/${race.entry_token}`
     : ''
 
   function handleCopy() {

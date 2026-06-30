@@ -141,7 +141,7 @@ function EmbedSection({ label, races }: { label: string; races: Race[] }) {
             </div>
             {canEnter && (
               <Link
-                href={`/join/${race.entry_token}`}
+                href={`/race/join/${race.entry_token}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="ml-3 flex-shrink-0 inline-flex items-center rounded bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-2 py-1 transition-colors"
