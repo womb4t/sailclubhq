@@ -284,6 +284,22 @@ export default function CourseBuilderMap({
       }))
     }
 
+    // Line from last leg to finish line midpoint
+    if (legs.length > 0 && mode === 'review') {
+      const lastLeg = legs[legs.length - 1]
+      // Determine finish line points
+      const effectiveFinish = finishAtStart === true
+        ? (startLine.length === 2 ? startLine : null)
+        : (finishLine && finishLine.length === 2 ? finishLine : null)
+
+      if (effectiveFinish) {
+        const fm = midpoint(effectiveFinish[0], effectiveFinish[1])
+        layer.addLayer(L.polyline([[lastLeg.lat, lastLeg.lng], fm], {
+          color: '#64748b', weight: 2, opacity: 0.6, dashArray: '6,4', interactive: false,
+        }))
+      }
+    }
+
     // Markers for each leg
     legs.forEach((leg, i) => {
       const color = leg.roundingSide === 'port' ? '#dc2626' : '#16a34a'
@@ -337,7 +353,7 @@ export default function CourseBuilderMap({
       layer.addLayer(L.marker([leg.lat, leg.lng], { icon: numIcon, interactive: false }))
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [legs, startLine])
+  }, [legs, startLine, mode, finishAtStart, finishLine])
 
   // ─── Finish line ──────────────────────────────────────────────────────────
   useEffect(() => {
