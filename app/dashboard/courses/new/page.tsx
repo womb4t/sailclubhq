@@ -604,7 +604,7 @@ export default function NewCoursePage() {
                     : 'bg-gray-300 cursor-not-allowed'
                 }`}
               >
-                {saving ? 'Saving…' : '✔ Save'}
+                {saving ? 'Saving…' : '🏁 Finish & Save'}
               </button>
             </div>
 
