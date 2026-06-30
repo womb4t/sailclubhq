@@ -14,6 +14,7 @@ const navItems: NavItem[] = [
   { href: '/dashboard/races', label: 'Races', icon: '🏁' },
   { href: '/dashboard/marks', label: 'Marks', icon: '📍' },
   { href: '/dashboard/courses', label: 'Courses', icon: '🗺️' },
+  { href: '/dashboard/settings', label: 'Settings', icon: '⚙️' },
 ]
 
 function isActive(pathname: string, href: string): boolean {
