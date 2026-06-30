@@ -97,7 +97,7 @@ export default function JoinClubPage() {
       }
     }
 
-    window.location.href = '/dashboard'
+    sessionStorage.setItem('schq_onboarded', '1'); window.location.href = '/dashboard'
   }
 
   if (loading || authLoading) {

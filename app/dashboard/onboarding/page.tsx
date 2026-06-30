@@ -97,7 +97,7 @@ export default function OnboardingPage() {
       setStep('pick-role')
       setLoading(false)
     } else {
-      window.location.href = '/dashboard'
+      sessionStorage.setItem('schq_onboarded', '1'); window.location.href = '/dashboard'
     }
   }
 
@@ -141,7 +141,7 @@ export default function OnboardingPage() {
       return
     }
 
-    window.location.href = '/dashboard'
+    sessionStorage.setItem('schq_onboarded', '1'); window.location.href = '/dashboard'
   }
 
   async function lookupInvite() {
@@ -183,7 +183,7 @@ export default function OnboardingPage() {
       return
     }
 
-    window.location.href = '/dashboard'
+    sessionStorage.setItem('schq_onboarded', '1'); window.location.href = '/dashboard'
   }
 
   const exactMatch = results.some(r => r.name.toLowerCase() === query.trim().toLowerCase())

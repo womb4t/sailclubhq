@@ -19,32 +19,29 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const checkClub = useCallback(async () => {
     if (!user) return
 
-    const supabase = getBrowserClient()
-
-    // Retry up to 3 times with small delay (handles race condition after onboarding)
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('club_id')
-        .eq('id', user.id)
-        .maybeSingle()
-
-      if (profile?.club_id) {
-        setHasClub(true)
-        setCheckingClub(false)
-        return
-      }
-
-      // Wait briefly before retry
-      if (attempt < 2) {
-        await new Promise(r => setTimeout(r, 500))
-      }
+    // Check if we just completed onboarding (flag set by onboarding page)
+    const justOnboarded = sessionStorage.getItem('schq_onboarded')
+    if (justOnboarded) {
+      sessionStorage.removeItem('schq_onboarded')
+      setHasClub(true)
+      setCheckingClub(false)
+      return
     }
 
-    // After retries, still no club
-    setHasClub(false)
-    if (!pathname.startsWith('/dashboard/onboarding')) {
-      window.location.href = '/dashboard/onboarding'
+    const supabase = getBrowserClient()
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('club_id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (profile?.club_id) {
+      setHasClub(true)
+    } else {
+      setHasClub(false)
+      if (!pathname.startsWith('/dashboard/onboarding')) {
+        window.location.href = '/dashboard/onboarding'
+      }
     }
     setCheckingClub(false)
   }, [user, pathname])
