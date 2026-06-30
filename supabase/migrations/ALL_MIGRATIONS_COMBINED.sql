@@ -105,6 +105,14 @@ DROP POLICY IF EXISTS "Club members can insert start classes" ON start_classes;
 CREATE POLICY "Club members can insert start classes" ON start_classes FOR INSERT WITH CHECK (
   race_id IN (SELECT id FROM races WHERE club_id IN (SELECT club_id FROM profiles WHERE id = auth.uid()))
 );
+DROP POLICY IF EXISTS "Club members can update start classes" ON start_classes;
+CREATE POLICY "Club members can update start classes" ON start_classes FOR UPDATE USING (
+  race_id IN (SELECT id FROM races WHERE club_id IN (SELECT club_id FROM profiles WHERE id = auth.uid()))
+);
+DROP POLICY IF EXISTS "Club members can delete start classes" ON start_classes;
+CREATE POLICY "Club members can delete start classes" ON start_classes FOR DELETE USING (
+  race_id IN (SELECT id FROM races WHERE club_id IN (SELECT club_id FROM profiles WHERE id = auth.uid()))
+);
 
 -- Race entries
 DROP POLICY IF EXISTS "Club members can read race entries" ON race_entries;

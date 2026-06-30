@@ -20,12 +20,12 @@ const statusVariant: Record<string, 'default' | 'info' | 'success' | 'warning' |
 }
 
 const statusLabel: Record<string, string> = {
-  draft: 'Draft',
-  planned: 'Planned',
-  confirmed: 'Confirmed',
-  cancelled: 'Cancelled',
-  completed: 'Completed',
-  archived: 'Archived',
+  draft: 'Race Draft',
+  planned: 'Race Planned',
+  confirmed: 'Race Confirmed',
+  cancelled: 'Race Cancelled',
+  completed: 'Race Completed',
+  archived: 'Race Archived',
 }
 
 // Valid status transitions
