@@ -14,7 +14,6 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -36,25 +35,16 @@ export default function RegisterPage() {
       return
     }
 
-    setSuccess(true)
-    setLoading(false)
-  }
+    // Email confirmation disabled — sign in immediately after signup
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+    if (signInError) {
+      setError(signInError.message)
+      setLoading(false)
+      return
+    }
 
-  if (success) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="w-full max-w-sm text-center">
-          <div className="text-4xl mb-4">✉️</div>
-          <h2 className="text-xl font-bold text-gray-900">Check your email</h2>
-          <p className="text-sm text-gray-600 mt-2">
-            We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account.
-          </p>
-          <Link href="/login" className="inline-block mt-6 text-blue-600 text-sm font-medium hover:underline">
-            Back to sign in
-          </Link>
-        </div>
-      </div>
-    )
+    router.push('/dashboard')
+    router.refresh()
   }
 
   return (
