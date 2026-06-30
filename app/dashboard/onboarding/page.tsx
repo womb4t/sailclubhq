@@ -10,12 +10,15 @@ import { Card } from '@/components/ui/Card'
 interface ClubResult {
   id: string
   name: string
-  member_count?: number
 }
+
+type Step = 'find-club' | 'pick-role'
 
 export default function OnboardingPage() {
   const router = useRouter()
   const { user } = useAuth()
+
+  const [step, setStep] = useState<Step>('find-club')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ClubResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -27,6 +30,10 @@ export default function OnboardingPage() {
   const [inviteCode, setInviteCode] = useState('')
   const [inviteClub, setInviteClub] = useState<ClubResult | null>(null)
   const [inviteError, setInviteError] = useState('')
+
+  // After joining/creating, we land here to pick role
+  const [joinedClubId, setJoinedClubId] = useState<string | null>(null)
+  const [joinedClubName, setJoinedClubName] = useState('')
 
   // Debounced search
   const search = useCallback(async (q: string) => {
@@ -62,7 +69,7 @@ export default function OnboardingPage() {
     return () => clearTimeout(timer)
   }, [query, search])
 
-  async function handleJoin(clubId: string) {
+  async function handleJoin(clubId: string, clubName: string, role?: string) {
     setError('')
     setLoading(true)
 
@@ -71,7 +78,10 @@ export default function OnboardingPage() {
 
     const { error: err } = await supabase
       .from('profiles')
-      .update({ club_id: clubId, role: 'competitor' })
+      .update({
+        club_id: clubId,
+        role: role ?? 'competitor',
+      })
       .eq('id', user.id)
 
     if (err) {
@@ -80,7 +90,15 @@ export default function OnboardingPage() {
       return
     }
 
-    window.location.href = '/dashboard'
+    if (!role) {
+      // Go to role selection
+      setJoinedClubId(clubId)
+      setJoinedClubName(clubName)
+      setStep('pick-role')
+      setLoading(false)
+    } else {
+      window.location.href = '/dashboard'
+    }
   }
 
   async function handleCreate() {
@@ -102,11 +120,16 @@ export default function OnboardingPage() {
       .single()
 
     if (clubErr) {
-      setError(clubErr.message)
+      if (clubErr.message.includes('unique') || clubErr.message.includes('duplicate')) {
+        setError('A club with that name already exists — try searching for it above.')
+      } else {
+        setError(clubErr.message)
+      }
       setLoading(false)
       return
     }
 
+    // Creator gets admin role directly
     const { error: profileErr } = await supabase
       .from('profiles')
       .update({ club_id: club.id, role: 'admin' })
@@ -142,8 +165,105 @@ export default function OnboardingPage() {
     setInviteClub(data)
   }
 
+  async function selectRole(role: string) {
+    if (!joinedClubId || !user) return
+
+    setLoading(true)
+    setError('')
+
+    const supabase = getBrowserClient()
+    const { error: err } = await supabase
+      .from('profiles')
+      .update({ role })
+      .eq('id', user.id)
+
+    if (err) {
+      setError(err.message)
+      setLoading(false)
+      return
+    }
+
+    window.location.href = '/dashboard'
+  }
+
   const exactMatch = results.some(r => r.name.toLowerCase() === query.trim().toLowerCase())
 
+  // ===== STEP 2: Pick role =====
+  if (step === 'pick-role') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-8">
+            <span className="text-4xl">⛵</span>
+            <h1 className="text-2xl font-bold text-gray-900 mt-3">Welcome to {joinedClubName}</h1>
+            <p className="text-sm text-gray-500 mt-1">What&apos;s your role?</p>
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={() => selectRole('competitor')}
+              disabled={loading}
+              className="w-full text-left"
+            >
+              <Card className="hover:border-blue-300 hover:shadow-md transition-all cursor-pointer p-5">
+                <div className="flex items-start gap-4">
+                  <span className="text-2xl">🏁</span>
+                  <div>
+                    <h2 className="font-semibold text-gray-900">Competitor</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      I&apos;m here to race — enter races, upload tracks, view results
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            </button>
+
+            <button
+              onClick={() => selectRole('race_officer')}
+              disabled={loading}
+              className="w-full text-left"
+            >
+              <Card className="hover:border-blue-300 hover:shadow-md transition-all cursor-pointer p-5">
+                <div className="flex items-start gap-4">
+                  <span className="text-2xl">📋</span>
+                  <div>
+                    <h2 className="font-semibold text-gray-900">Race Officer / OOD</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      I manage races — set courses, run starts, record results
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            </button>
+
+            <button
+              onClick={() => selectRole('admin')}
+              disabled={loading}
+              className="w-full text-left"
+            >
+              <Card className="hover:border-blue-300 hover:shadow-md transition-all cursor-pointer p-5">
+                <div className="flex items-start gap-4">
+                  <span className="text-2xl">👑</span>
+                  <div>
+                    <h2 className="font-semibold text-gray-900">Club Admin</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">
+                      I manage the club — members, settings, everything
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            </button>
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3 mt-4">{error}</p>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ===== STEP 1: Find / create club =====
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md">
@@ -179,7 +299,7 @@ export default function OnboardingPage() {
                 {results.map((club) => (
                   <button
                     key={club.id}
-                    onClick={() => handleJoin(club.id)}
+                    onClick={() => handleJoin(club.id, club.name)}
                     disabled={loading}
                     className="w-full text-left flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all"
                   >
@@ -239,7 +359,6 @@ export default function OnboardingPage() {
               </div>
             )}
 
-            {/* No results, too short */}
             {!searched && query.trim().length > 0 && query.trim().length < 2 && (
               <p className="text-xs text-gray-400 text-center">Keep typing to search...</p>
             )}
@@ -250,6 +369,7 @@ export default function OnboardingPage() {
           </div>
         </Card>
 
+        {/* Invite code section */}
         <Card className="p-4 mt-4">
           <div className="space-y-3">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Have an invite code?</p>
@@ -281,7 +401,7 @@ export default function OnboardingPage() {
                 </div>
                 <Button
                   size="sm"
-                  onClick={() => handleJoin(inviteClub.id)}
+                  onClick={() => handleJoin(inviteClub.id, inviteClub.name)}
                   loading={loading}
                 >
                   Join
