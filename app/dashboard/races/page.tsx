@@ -183,6 +183,7 @@ export default function RacesPage() {
                 variant="secondary"
                 size="sm"
                 onClick={() => setShowShare((v) => !v)}
+                title="Publish Your Race Calendar"
               >
                 📡 Public Calendar
               </Button>
