@@ -11,7 +11,7 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import type { CourseTemplate, CourseTemplateLeg, Mark } from '@/types/database'
 import { haversineNm } from '@/components/map/CourseBuilderMap'
 
-const SeaMap = dynamic(() => import('@/components/map/SeaMap'), {
+const CoursePreviewMap = dynamic(() => import('@/components/map/CoursePreviewMap'), {
   ssr: false,
   loading: () => (
     <div className="h-64 bg-gray-100 rounded-xl flex items-center justify-center">
@@ -117,16 +117,28 @@ export default function CourseDetailPage() {
     return total * (lapCount > 0 ? lapCount : 1)
   })()
 
-  // Map markers from legs
-  const mapMarkers = legs.map(l => ({
-    id: l.mark.id,
+  // Map data
+  const previewMarks = legs.map(l => ({
     lat: l.mark.lat,
-    lon: l.mark.lon,
+    lng: l.mark.lon,
     name: l.mark.name,
-    label: l.mark.short_id,
-    type: l.mark.type as 'physical' | 'virtual',
     rounding: l.rounding_side as 'port' | 'starboard',
+    isTemp: l.mark.source === 'race',
   }))
+
+  const previewStartLine = (course?.start_line_lat1 != null && course?.start_line_lat2 != null)
+    ? [
+        { lat: course.start_line_lat1, lng: course.start_line_lng1! },
+        { lat: course.start_line_lat2, lng: course.start_line_lng2! },
+      ]
+    : null
+
+  const previewFinishLine = (course?.finish_line_lat1 != null && course?.finish_line_lat2 != null)
+    ? [
+        { lat: course.finish_line_lat1, lng: course.finish_line_lng1! },
+        { lat: course.finish_line_lat2, lng: course.finish_line_lng2! },
+      ]
+    : null
 
   if (loading) {
     return (
@@ -178,8 +190,13 @@ export default function CourseDetailPage() {
       {/* Map preview */}
       {legs.length > 0 && (
         <Card>
-          <div className="h-64 rounded-xl overflow-hidden">
-            <SeaMap markers={mapMarkers} />
+          <div className="h-72 rounded-xl overflow-hidden">
+            <CoursePreviewMap
+              marks={previewMarks}
+              startLine={previewStartLine}
+              finishLine={previewFinishLine}
+              finishAtStart={course?.finish_at_start ?? true}
+            />
           </div>
         </Card>
       )}
