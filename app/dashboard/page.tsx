@@ -101,7 +101,7 @@ export default function DashboardPage() {
           </div>
           <div className="space-y-2">
             {recentRaces.map((race) => (
-              <Link key={race.id} href={`/races/${race.id}`}>
+              <Link key={race.id} href={`/dashboard/races/${race.id}`}>
                 <Card className="flex items-center justify-between hover:border-blue-300 transition-colors">
                   <div>
                     <p className="text-sm font-medium text-gray-900">{race.name}</p>
