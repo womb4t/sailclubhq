@@ -31,22 +31,22 @@ const statusLabel: Record<string, string> = {
 // Valid status transitions
 const statusTransitions: Record<string, { label: string; to: string; style: string }[]> = {
   draft: [
-    { label: 'Publish', to: 'planned', style: 'bg-blue-600 hover:bg-blue-700 text-white' },
+    { label: 'Publish Race', to: 'planned', style: 'bg-blue-600 hover:bg-blue-700 text-white' },
   ],
   planned: [
-    { label: 'Confirm', to: 'confirmed', style: 'bg-green-600 hover:bg-green-700 text-white' },
-    { label: 'Cancel', to: 'cancelled', style: 'bg-red-100 hover:bg-red-200 text-red-700' },
+    { label: 'Confirm Race', to: 'confirmed', style: 'bg-green-600 hover:bg-green-700 text-white' },
+    { label: 'Cancel Race', to: 'cancelled', style: 'bg-red-100 hover:bg-red-200 text-red-700' },
     { label: 'Back to Draft', to: 'draft', style: 'bg-gray-100 hover:bg-gray-200 text-gray-700' },
   ],
   confirmed: [
-    { label: 'Complete', to: 'completed', style: 'bg-amber-600 hover:bg-amber-700 text-white' },
-    { label: 'Cancel', to: 'cancelled', style: 'bg-red-100 hover:bg-red-200 text-red-700' },
+    { label: 'Complete Race', to: 'completed', style: 'bg-amber-600 hover:bg-amber-700 text-white' },
+    { label: 'Cancel Race', to: 'cancelled', style: 'bg-red-100 hover:bg-red-200 text-red-700' },
   ],
   cancelled: [
-    { label: 'Reopen as Planned', to: 'planned', style: 'bg-blue-100 hover:bg-blue-200 text-blue-700' },
+    { label: 'Reopen Race', to: 'planned', style: 'bg-blue-100 hover:bg-blue-200 text-blue-700' },
   ],
   completed: [
-    { label: 'Archive', to: 'archived', style: 'bg-gray-100 hover:bg-gray-200 text-gray-700' },
+    { label: 'Archive Race', to: 'archived', style: 'bg-gray-100 hover:bg-gray-200 text-gray-700' },
   ],
   archived: [],
 }
