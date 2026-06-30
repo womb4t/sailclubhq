@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { DashboardNav } from './DashboardNav'
 
@@ -6,7 +5,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) redirect('/login')
+  // Don't redirect here — proxy handles unauthenticated access
+  // Redirecting here causes loops when session cookie hasn't propagated
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
