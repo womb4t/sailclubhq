@@ -232,18 +232,37 @@ export default function NewRacePage() {
               />
               <div>
                 <label className="text-sm font-medium text-gray-700">Start time</label>
-                <select
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select time…</option>
-                  {Array.from({ length: 96 }, (_, i) => {
-                    const h = Math.floor(i / 4).toString().padStart(2, '0')
-                    const m = ((i % 4) * 15).toString().padStart(2, '0')
-                    return <option key={i} value={`${h}:${m}`}>{h}:{m}</option>
-                  })}
-                </select>
+                <div className="mt-1 flex gap-2">
+                  <select
+                    value={startTime ? startTime.split(':')[0] : ''}
+                    onChange={(e) => {
+                      const hr = e.target.value
+                      const min = startTime ? startTime.split(':')[1] : '00'
+                      setStartTime(hr ? `${hr}:${min || '00'}` : '')
+                    }}
+                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Hr</option>
+                    {Array.from({ length: 24 }, (_, i) => {
+                      const h = i.toString().padStart(2, '0')
+                      return <option key={i} value={h}>{h}</option>
+                    })}
+                  </select>
+                  <span className="self-center text-gray-400 font-bold">:</span>
+                  <select
+                    value={startTime ? startTime.split(':')[1] : ''}
+                    onChange={(e) => {
+                      const hr = startTime ? startTime.split(':')[0] : '09'
+                      setStartTime(`${hr}:${e.target.value}`)
+                    }}
+                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="00">00</option>
+                    <option value="15">15</option>
+                    <option value="30">30</option>
+                    <option value="45">45</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>
