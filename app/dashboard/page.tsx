@@ -136,6 +136,18 @@ export default function DashboardPage() {
             <div className="text-sm font-medium text-gray-700">All races</div>
           </Card>
         </Link>
+        <Link href="/dashboard/profile">
+          <Card className="text-center py-5 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
+            <div className="text-2xl mb-1">👤</div>
+            <div className="text-sm font-medium text-gray-700">Profile</div>
+          </Card>
+        </Link>
+        <Link href="/dashboard/boats">
+          <Card className="text-center py-5 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
+            <div className="text-2xl mb-1">⛵</div>
+            <div className="text-sm font-medium text-gray-700">My Boats</div>
+          </Card>
+        </Link>
       </div>
 
       {/* Series filter */}
