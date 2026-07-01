@@ -121,10 +121,13 @@ export interface StartClass {
 export interface RaceEntry {
   id: string
   race_id: string
-  boat_id: string
-  class_id: string
-  phone_offset_from_bow_m: number
+  boat_id: string | null
+  class_id: string | null
+  phone_offset_from_bow_m: number | null
   status: EntryStatus
+  helm_name: string | null
+  phone: string | null
+  role: 'helm' | 'crew'
   created_at: string
 }
 

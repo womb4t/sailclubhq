@@ -264,7 +264,11 @@ export default function RaceJoinPage() {
           <h1 className="text-2xl font-bold text-gray-900">{race.name}</h1>
           <p className="text-sm text-gray-600 mt-1">
             {formatDate(race.race_date)}
-            {startTime && <span className="ml-1">at {startTime}</span>}
+            {startTime && (
+              <span className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-lg ml-1">
+                ⏰ {startTime}
+              </span>
+            )}
           </p>
           {race.series && (
             <span className="inline-block mt-1 text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{race.series}</span>
@@ -326,7 +330,7 @@ export default function RaceJoinPage() {
                 You&apos;re entered for <strong>{race.name}</strong>.
               </p>
               <p className="text-sm text-gray-400 mt-2">
-                {formatDate(race.race_date)}{startTime && ` at ${startTime}`}
+                {formatDate(race.race_date)}{startTime && <span className="ml-1 font-semibold text-blue-700"> ⏰ {startTime}</span>}
               </p>
             </div>
           </Card>

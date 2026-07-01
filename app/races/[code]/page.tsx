@@ -201,7 +201,7 @@ function RaceCard({ race }: { race: Race }) {
           </div>
           <p className="text-sm text-gray-600 mt-1">
             {formatDate(race.race_date)}
-            {startTime && <span className="text-gray-400 ml-1.5">· Start {startTime}</span>}
+            {startTime && <span className="ml-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg">⏰ {startTime}</span>}
           </p>
           {race.series && (
             <p className="text-xs text-gray-400 mt-0.5">{race.series}</p>
