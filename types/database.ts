@@ -23,16 +23,29 @@ export interface Profile {
   full_name: string | null
   club_id: string | null
   role: Role
+  phone: string | null
+  emergency_contact_name: string | null
+  emergency_contact_phone: string | null
+  emergency_contact_relation: string | null
+  medical_notes: string | null
+  rya_number: string | null
+  experience_level: string | null
+  profile_complete: boolean
   created_at: string
 }
 
 export interface Boat {
   id: string
   club_id: string
-  owner_name: string
+  owner_id: string | null
+  owner_name: string | null
   boat_name: string
+  class: string | null
+  hull_colour: string | null
   length_m: number | null
   sail_number: string | null
+  py_handicap: number | null
+  status: string | null
   created_at: string
 }
 
