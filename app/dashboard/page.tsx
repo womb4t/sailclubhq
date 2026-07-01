@@ -15,6 +15,7 @@ const statusStyle: Record<string, string> = {
   draft: 'bg-amber-100 text-amber-800',
   planned: 'bg-blue-100 text-blue-800',
   confirmed: 'bg-green-100 text-green-800',
+  live: 'bg-red-100 text-red-700',
   completed: 'bg-gray-100 text-gray-600',
   cancelled: 'bg-red-100 text-red-700',
   archived: 'bg-gray-50 text-gray-400',
@@ -24,6 +25,7 @@ const statusLabel: Record<string, string> = {
   draft: 'Draft',
   planned: 'Planned',
   confirmed: 'Confirmed',
+  live: 'Racing Live 🔴',
   completed: 'Completed',
   cancelled: 'Cancelled',
   archived: 'Archived',
@@ -78,10 +80,11 @@ export default function DashboardPage() {
     ? races
     : races.filter(r => r.series === seriesFilter)
 
-  // Split into upcoming and past
+  // Split into live, upcoming and past
   const today = new Date().toISOString().split('T')[0]
+  const liveRaces = filteredRaces.filter(r => r.status === 'live')
   const upcomingRaces = filteredRaces
-    .filter(r => r.race_date >= today && r.status !== 'completed' && r.status !== 'cancelled' && r.status !== 'archived')
+    .filter(r => r.status !== 'live' && r.race_date >= today && r.status !== 'completed' && r.status !== 'cancelled' && r.status !== 'archived')
     .sort((a, b) => a.race_date.localeCompare(b.race_date))
   const pastRaces = filteredRaces
     .filter(r => r.race_date < today || r.status === 'completed' || r.status === 'cancelled' || r.status === 'archived')
@@ -176,6 +179,38 @@ export default function DashboardPage() {
               {s}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Racing Now */}
+      {liveRaces.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
+            <h2 className="text-sm font-semibold text-red-600 uppercase tracking-wide">Racing Now</h2>
+          </div>
+          <div className="space-y-2">
+            {liveRaces.map(race => (
+              <Card key={race.id} className="border-red-200 bg-red-50/30">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-gray-900">{race.name}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${statusStyle['live']}`}>
+                        {statusLabel['live']}
+                      </span>
+                    </div>
+                  </div>
+                  <Link
+                    href={`/race/live/${race.entry_token}`}
+                    className="shrink-0 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium"
+                  >
+                    📱 Join Race
+                  </Link>
+                </div>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 

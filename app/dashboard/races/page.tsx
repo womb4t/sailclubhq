@@ -11,6 +11,7 @@ const statusVariant: Record<string, 'default' | 'info' | 'success' | 'warning' |
   draft: 'default',
   planned: 'info',
   confirmed: 'success',
+  live: 'danger',
   cancelled: 'danger',
   completed: 'warning',
   archived: 'default',
@@ -20,6 +21,7 @@ const statusLabel: Record<string, string> = {
   draft: 'Draft',
   planned: 'Race Planned',
   confirmed: 'Race Confirmed',
+  live: 'Racing Live 🔴',
   cancelled: 'Race Cancelled',
   completed: 'Race Completed',
   archived: 'Race Archived',
@@ -122,6 +124,8 @@ export default function RacesPage() {
   const filtered = seriesFilter === 'all' ? races : races.filter(r => r.series === seriesFilter)
 
   const today = new Date().toISOString().split('T')[0]
+  // Live races always show at top as "Racing Now"
+  const liveRaces = filtered.filter((r) => r.status === 'live')
   const activeRaces = filtered.filter((r) => r.status === 'confirmed' && r.race_date === today)
   const upcomingRaces = filtered
     .filter((r) => (r.status === 'planned' || r.status === 'draft') || (r.status === 'confirmed' && r.race_date !== today))
@@ -282,9 +286,33 @@ export default function RacesPage() {
         </div>
       ) : (
         <>
+          {liveRaces.length > 0 && (
+            <section>
+              <h2 className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                Racing Now
+              </h2>
+              <div className="space-y-2">
+                {liveRaces.map((r) => (
+                  <div key={r.id} className="border-2 border-red-300 rounded-xl">
+                    <RaceRow race={r} />
+                    <div className="px-3 pb-3">
+                      <Link
+                        href={`/race/live/${r.entry_token}`}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium"
+                      >
+                        📱 Join Race
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           {activeRaces.length > 0 && (
             <section>
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">🟢 Racing now</h2>
+              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">🟢 Today</h2>
               <div className="space-y-2">
                 {activeRaces.map((r) => <RaceRow key={r.id} race={r} />)}
               </div>

@@ -5,7 +5,7 @@ export type Role = 'admin' | 'race_officer' | 'ood' | 'competitor'
 export type MarkType = 'virtual' | 'physical'
 export type MarkSource = 'catalogue' | 'race'
 export type RoundingSide = 'port' | 'starboard'
-export type RaceStatus = 'draft' | 'planned' | 'confirmed' | 'cancelled' | 'completed' | 'archived'
+export type RaceStatus = 'draft' | 'planned' | 'confirmed' | 'live' | 'cancelled' | 'completed' | 'archived'
 export type PrepFlag = 'P' | 'I' | 'U' | 'Black'
 export type EntryStatus = 'entered' | 'racing' | 'withdrawn' | 'DNF' | 'OCS' | 'protest'
 export type StartStatus = 'clean' | 'ocs-confident' | 'too-close-to-call'
@@ -106,6 +106,10 @@ export interface Race {
   entry_token: string
   course_template_id: string | null
   created_at: string
+  // Live racing columns
+  race_controller_id: string | null
+  race_started_at: string | null
+  race_finished_at: string | null
 }
 
 export interface StartClass {
@@ -116,6 +120,8 @@ export interface StartClass {
   prep_flag: PrepFlag
   start_time: string
   sequence_warning_mins: number
+  general_recall: boolean
+  recalled_at: string | null
 }
 
 export interface RaceEntry {
@@ -129,6 +135,16 @@ export interface RaceEntry {
   phone: string | null
   role: 'helm' | 'crew'
   created_at: string
+  // Live racing columns
+  start_time: string | null
+  finish_time: string | null
+  elapsed_seconds: number | null
+  laps_completed: number
+  last_mark_index: number
+  tracking_active: boolean
+  handicap_system: string | null
+  handicap_value: number | null
+  corrected_seconds: number | null
 }
 
 export interface GpsTrack {
@@ -161,6 +177,35 @@ export interface RaceResult {
   protest: boolean
   detection_flags: Record<string, unknown> | null
   created_at: string
+}
+
+export interface LivePosition {
+  id: number
+  race_id: string
+  entry_id: string
+  user_id: string
+  lat: number
+  lon: number
+  speed_kts: number | null
+  heading_deg: number | null
+  accuracy_m: number | null
+  recorded_at: string
+  synced_at: string
+}
+
+export interface RaceEnvironment {
+  id: string
+  race_id: string
+  recorded_at: string
+  wind_speed_kts: number | null
+  wind_dir_deg: number | null
+  tide_height_m: number | null
+  tide_state: string | null
+  current_speed_kts: number | null
+  current_dir_deg: number | null
+  hw_time: string | null
+  lw_time: string | null
+  source: string | null
 }
 
 // Joined types for common queries

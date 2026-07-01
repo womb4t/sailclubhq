@@ -39,6 +39,7 @@ const statusVariant: Record<string, 'default' | 'info' | 'success' | 'warning' |
   draft: 'default',
   planned: 'info',
   confirmed: 'success',
+  live: 'danger',
   cancelled: 'danger',
   completed: 'warning',
   archived: 'default',
@@ -48,6 +49,7 @@ const statusLabel: Record<string, string> = {
   draft: 'Draft',
   planned: 'Planned',
   confirmed: 'Confirmed',
+  live: 'Racing Live 🔴',
   cancelled: 'Cancelled',
   completed: 'Completed',
   archived: 'Archived',
@@ -64,6 +66,10 @@ const statusTransitions: Record<string, { label: string; to: string; style: stri
     { label: 'Back to Draft', to: 'draft', style: 'bg-gray-100 hover:bg-gray-200 text-gray-700' },
   ],
   confirmed: [
+    { label: '🏁 Go Live', to: 'live', style: 'bg-green-600 hover:bg-green-700 text-white' },
+    { label: 'Cancel Race', to: 'cancelled', style: 'bg-red-100 hover:bg-red-200 text-red-700' },
+  ],
+  live: [
     { label: 'Complete Race', to: 'completed', style: 'bg-amber-600 hover:bg-amber-700 text-white' },
     { label: 'Cancel Race', to: 'cancelled', style: 'bg-red-100 hover:bg-red-200 text-red-700' },
   ],
@@ -778,6 +784,38 @@ export default function RaceDetailPage() {
           </div>
         )}
       </Card>
+
+      {/* Live Race Links - shown when race is live */}
+      {race.status === 'live' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>🔴 Race is Live</CardTitle>
+          </CardHeader>
+          <div className="space-y-2">
+            <p className="text-sm text-gray-500">Share these links with competitors and spectators:</p>
+            <div className="flex flex-col gap-2">
+              <Link
+                href={`/race/live/${race.entry_token}`}
+                className="flex items-center gap-2 px-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                📱 Race Navigation
+              </Link>
+              <Link
+                href={`/race/watch/${race.entry_token}`}
+                className="flex items-center gap-2 px-3 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+              >
+                👁 Spectator View <span className="text-xs text-gray-400">(coming soon)</span>
+              </Link>
+              <Link
+                href={`/race/control/${race.entry_token}`}
+                className="flex items-center gap-2 px-3 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
+              >
+                🎛 Race Control <span className="text-xs text-gray-400">(coming soon)</span>
+              </Link>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Competitor entry link */}
       <Card>
