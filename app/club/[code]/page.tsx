@@ -97,7 +97,7 @@ function UpcomingRaceCard({ race, clubCode, isLoggedIn }: { race: Race; clubCode
           <p className="text-sm text-gray-600">
             {formatDate(race.race_date)}
             {startTime && (
-              <span className="ml-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg">⏰ {startTime}</span>
+              <span className="ml-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg">🏁 Start: {startTime}</span>
             )}
           </p>
         </div>

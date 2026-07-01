@@ -462,6 +462,11 @@ export default function RaceDetailPage() {
     ? race.notes.replace(/^Start time: \d{2}:\d{2}\n?/, '').trim()
     : ''
 
+  // Calculate sequence start time from first class warning signal
+  const sequenceStartTime = startClasses.length > 0
+    ? addMinutes(formatTime(startClasses[0].start_time), -startClasses[0].sequence_warning_mins)
+    : null
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -476,18 +481,24 @@ export default function RaceDetailPage() {
               {statusLabel[race.status] ?? race.status}
             </Badge>
           </div>
-          <div className="flex items-center gap-3 mt-1">
-            <p className="text-sm text-gray-500">
-              {formatDate(race.race_date)}
-            </p>
+          <p className="text-sm text-gray-500 mt-1">
+            {formatDate(race.race_date)}
+          </p>
+          {/* Time badges */}
+          <div className="flex items-center gap-2 flex-wrap mt-1.5">
             {startTime && (
-              <span className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-lg">
-                ⏰ {startTime}
+              <span className="inline-flex items-center gap-1 text-sm font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg">
+                🏁 Start Time: {startTime}
+              </span>
+            )}
+            {sequenceStartTime && (
+              <span className="inline-flex items-center gap-1 text-sm font-medium text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg">
+                🚩 Sequence starts: {sequenceStartTime}
               </span>
             )}
           </div>
           {race.series && (
-            <p className="text-xs text-gray-400 mt-0.5">{race.series}</p>
+            <p className="text-xs text-gray-400 mt-1">{race.series}</p>
           )}
         </div>
         <div className="flex gap-2 flex-shrink-0">
@@ -682,8 +693,8 @@ export default function RaceDetailPage() {
                   {/* Timeline */}
                   <div className="px-3 py-2 space-y-1">
                     {isFirst && (
-                      <div className="text-xs text-blue-600 font-medium mb-1.5">
-                        ── First start ──
+                      <div className="text-xs text-amber-600 font-semibold mb-1.5">
+                        🚩 First warning at {warnTime}
                       </div>
                     )}
                     <div className="flex items-baseline gap-3">

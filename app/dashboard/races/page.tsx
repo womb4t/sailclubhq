@@ -155,7 +155,7 @@ export default function RacesPage() {
             </div>
             <p className="text-sm text-gray-500 mt-0.5">
               {formatDate(race.race_date)}
-              {startTime && <span className="ml-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg">⏰ {startTime}</span>}
+              {startTime && <span className="ml-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg">🏁 Start: {startTime}</span>}
             </p>
             {race.series && (
               <p className="text-xs text-gray-400 mt-0.5">{race.series}</p>

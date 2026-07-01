@@ -201,7 +201,7 @@ export default function DashboardPage() {
                         <div className="text-center shrink-0 w-12">
                           <div className="text-[10px] text-gray-400 uppercase">{dayName}</div>
                           <div className="text-sm font-bold text-gray-900">{dateStr}</div>
-                          {startTime && <div className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded mt-0.5">⏰ {startTime}</div>}
+                          {startTime && <div className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded mt-0.5">🏁 Start: {startTime}</div>}
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">{race.name}</p>
