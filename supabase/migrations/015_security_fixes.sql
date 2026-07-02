@@ -162,12 +162,24 @@ create policy "Officers can delete race results" on race_results
 
 -- ============================================================
 -- H3: Allow admins/officers to read club member profiles (emergency contacts)
+-- Uses auth.uid() directly to avoid infinite recursion on profiles table
 -- ============================================================
+
+-- First create a security definer function to safely check role without triggering RLS
+create or replace function public.get_user_club_and_role()
+returns table(club_id uuid, role text)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select club_id, role from profiles where id = auth.uid();
+$$;
 
 create policy "Officers can read club member profiles" on profiles
   for select using (
     club_id in (
-      select club_id from profiles where id = auth.uid() and role in ('admin', 'race_officer', 'ood')
+      select club_id from public.get_user_club_and_role() where role in ('admin', 'race_officer', 'ood')
     )
   );
 
