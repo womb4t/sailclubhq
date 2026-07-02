@@ -238,6 +238,7 @@ export default function RaceJoinPage() {
         const { error: entryErr } = await supabase.from('race_entries').insert({
           race_id: race!.id, boat_id: selectedBoatId || null, class_id: selectedClassId || null,
           helm_name: profile?.full_name ?? '', phone: profile?.phone ?? null, status: 'entered', role: 'helm',
+          user_id: user!.id,
         })
         if (entryErr) { setError(entryErr.message); setSubmitting(false); return }
         const cb = userBoats.find((b) => b.id === selectedBoatId)
@@ -251,6 +252,7 @@ export default function RaceJoinPage() {
             race_id: race!.id, boat_id: crewBoatId, class_id: null,
             helm_name: (profile?.full_name ?? 'Crew') + ' (crew on ' + (eb?.boat_name ?? 'boat') + ')',
             phone: profile?.phone ?? null, status: 'entered', role: 'crew',
+            user_id: user!.id,
           })
           if (entryErr) { setError(entryErr.message); setSubmitting(false); return }
           setSuccessEntry({ boat_name: eb?.boat_name ?? null, class_name: null, role: 'crew' })
@@ -259,6 +261,7 @@ export default function RaceJoinPage() {
           const { error: entryErr } = await supabase.from('race_entries').insert({
             race_id: race!.id, boat_id: selectedBoatId, class_id: selectedClassId || null,
             helm_name: profile?.full_name ?? '', phone: profile?.phone ?? null, status: 'entered', role: 'crew',
+            user_id: user!.id,
           })
           if (entryErr) { setError(entryErr.message); setSubmitting(false); return }
           setSuccessEntry({ boat_name: cb?.boat_name ?? null, class_name: null, role: 'crew' })
@@ -267,6 +270,7 @@ export default function RaceJoinPage() {
             race_id: race!.id, boat_id: null, class_id: null,
             helm_name: (profile?.full_name ?? 'Crew') + ' (available as crew)',
             phone: profile?.phone ?? null, status: 'entered', role: 'crew',
+            user_id: user!.id,
           })
           if (entryErr) { setError(entryErr.message); setSubmitting(false); return }
           setSuccessEntry({ boat_name: null, class_name: null, role: 'crew' })

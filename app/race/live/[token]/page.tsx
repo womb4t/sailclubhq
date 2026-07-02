@@ -343,6 +343,7 @@ export default function LiveRacePage() {
         .from('race_entries')
         .select('id, helm_name, finish_time, laps_completed')
         .eq('race_id', raceData.id)
+        .eq('user_id', user.id)
         .limit(1)
         .maybeSingle()
 

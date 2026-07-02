@@ -129,6 +129,7 @@ export interface RaceEntry {
   race_id: string
   boat_id: string | null
   class_id: string | null
+  user_id: string | null
   phone_offset_from_bow_m: number | null
   status: EntryStatus
   helm_name: string | null
