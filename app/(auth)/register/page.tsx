@@ -40,7 +40,7 @@ function RegisterForm() {
     setLoading(true)
     const supabase = getBrowserClient()
 
-    const { error: signUpErr } = await supabase.auth.signUp({
+    const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: fullName } },
@@ -51,9 +51,22 @@ function RegisterForm() {
       return
     }
 
-    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
+    // If signUp already created a session (email confirmation disabled), skip signIn
+    if (signUpData.session) {
+      setLoading(false)
+      setStep('details')
+      return
+    }
+
+    // Otherwise try signing in
+    const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
     if (signInErr) {
       setError(signInErr.message)
+      setLoading(false)
+      return
+    }
+    if (!signInData.session) {
+      setError('Account created but could not sign in. Try signing in manually.')
       setLoading(false)
       return
     }

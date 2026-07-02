@@ -10,6 +10,7 @@ function LoginForm() {
   const searchParams = useSearchParams()
   const joinCode = searchParams.get('join')
   const raceToken = searchParams.get('race')
+  const redirect = searchParams.get('redirect')
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -21,13 +22,21 @@ function LoginForm() {
     setError('')
     setLoading(true)
     const supabase = getBrowserClient()
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
     if (err) {
       setError(err.message)
       setLoading(false)
       return
     }
-    window.location.href = raceToken ? `/race/join/${raceToken}` : joinCode ? `/join/${joinCode}` : '/dashboard'
+    if (!data.session) {
+      setError('Sign in succeeded but no session was created. Please try again.')
+      setLoading(false)
+      return
+    }
+    // Wait for cookies to be written before redirect
+    await new Promise(r => setTimeout(r, 500))
+    const dest = raceToken ? `/race/join/${raceToken}` : joinCode ? `/join/${joinCode}` : redirect || '/dashboard'
+    window.location.href = dest
   }
 
   return (
