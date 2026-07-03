@@ -227,6 +227,8 @@ export default function LiveRacePage() {
 
   // UI state
   const [courseUp, setCourseUp] = useState(true)
+  const [showHeadingLine, setShowHeadingLine] = useState(false)
+  const [trail, setTrail] = useState<[number, number][]>([])
   const [batteryDismissed, setBatteryDismissed] = useState(false)
   const [mapCenter, setMapCenter] = useState<[number, number]>([51.5, -0.1])
 
@@ -260,6 +262,17 @@ export default function LiveRacePage() {
   useEffect(() => { raceRef.current = race }, [race])
   useEffect(() => { userRef.current = user ? { id: user.id } : null }, [user])
   useEffect(() => { isSimRef.current = isSim }, [isSim])
+
+  // Append a point to the boat's track (breadcrumb). Called from GPS handlers
+  // (event callbacks, not effects), skipping near-duplicates and capping length.
+  const appendTrail = useCallback((lat: number, lon: number) => {
+    setTrail((prev) => {
+      const last = prev[prev.length - 1]
+      if (last && Math.abs(last[0] - lat) < 1e-5 && Math.abs(last[1] - lon) < 1e-5) return prev
+      const next: [number, number][] = [...prev, [lat, lon]]
+      return next.length > 2000 ? next.slice(next.length - 2000) : next
+    })
+  }, [])
 
   // ── Load race data ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -503,6 +516,7 @@ export default function LiveRacePage() {
           setGpsStatus('active')
           setCurrentPos(gpsPos)
           setMapCenter([gpsPos.lat, gpsPos.lon])
+          appendTrail(gpsPos.lat, gpsPos.lon)
           handleGpsUpdate(gpsPos)
           prevPosRef.current = gpsPos
         },
@@ -534,6 +548,7 @@ export default function LiveRacePage() {
         setGpsStatus('active')
         setCurrentPos(gpsPos)
         setMapCenter([gpsPos.lat, gpsPos.lon])
+        appendTrail(gpsPos.lat, gpsPos.lon)
 
         // Offline-first: queue every fix to IndexedDB (survives signal loss).
         if (raceRef.current && userRef.current) {
@@ -966,15 +981,25 @@ export default function LiveRacePage() {
           courseUp={courseUp}
           laps={totalLaps}
           currentLap={currentLap}
+          trail={trail}
+          showHeadingLine={showHeadingLine}
         />
 
-        {/* Course-up / North-up toggle */}
-        <button
-          onClick={() => setCourseUp(v => !v)}
-          className="absolute top-3 right-3 z-[1000] bg-gray-900/90 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-medium shadow-lg"
-        >
-          {courseUp ? '🧭 Course Up' : '⬆️ North Up'}
-        </button>
+        {/* Map toggles */}
+        <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-2 items-end">
+          <button
+            onClick={() => setCourseUp(v => !v)}
+            className="bg-gray-900/90 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-medium shadow-lg"
+          >
+            {courseUp ? '🧭 Course Up' : '⬆️ North Up'}
+          </button>
+          <button
+            onClick={() => setShowHeadingLine(v => !v)}
+            className={`border rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-lg ${showHeadingLine ? 'bg-amber-500 border-amber-400 text-slate-900' : 'bg-gray-900/90 border-gray-700 text-white'}`}
+          >
+            {showHeadingLine ? '— Heading On' : '— Heading Off'}
+          </button>
+        </div>
 
         {/* Next mark banner */}
         {isRacing && !finished && nextMark && (
