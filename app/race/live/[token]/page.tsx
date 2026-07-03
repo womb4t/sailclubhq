@@ -153,7 +153,6 @@ interface RaceData {
   name: string
   entry_token: string
   status: string
-  race_started_at: string | null
 }
 
 interface EntryData {
@@ -191,7 +190,7 @@ export default function LiveRacePage() {
   const currentLapRef = useRef(1)
   const finishedRef = useRef(false)
   const entryRef = useRef<EntryData | null>(null)
-  const raceRef = useRef<RaceData | null>(null)
+  const startClassesRef = useRef<StartClass[]>([])
 
   // Race progress state
   const [nextMarkIndex, setNextMarkIndex] = useState(0)
@@ -239,7 +238,7 @@ export default function LiveRacePage() {
     }
   }, [startClasses])
   useEffect(() => { entryRef.current = entry }, [entry])
-  useEffect(() => { raceRef.current = race }, [race])
+  useEffect(() => { startClassesRef.current = startClasses }, [startClasses])
 
   // ── Load race data ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -253,7 +252,7 @@ export default function LiveRacePage() {
 
     const { data: raceData, error: raceErr } = await supabase
       .from('races')
-      .select('id, name, entry_token, status, race_started_at, course_template_id')
+      .select('id, name, entry_token, status, course_template_id')
       .eq('entry_token', token)
       .single()
 
@@ -555,11 +554,11 @@ export default function LiveRacePage() {
 
           if (entryRef.current) {
             const supabase = getBrowserClient()
-            const r = raceRef.current
+            const startedAt = startClassesRef.current[0]?.start_time ?? null
             supabase.from('race_entries').update({
               finish_time: ft,
-              elapsed_seconds: r?.race_started_at
-                ? (Date.now() - new Date(r.race_started_at).getTime()) / 1000
+              elapsed_seconds: startedAt
+                ? (Date.now() - new Date(startedAt).getTime()) / 1000
                 : null,
               laps_completed: totalLaps,
             }).eq('id', entryRef.current.id)
