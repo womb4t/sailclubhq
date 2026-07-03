@@ -108,6 +108,15 @@ export default function TrackerPage() {
   const { user, loading: authLoading } = useAuth()
   const simRef = useRef<GpsSimulator | null>(null)
 
+  // Anonymous participant id (set by /race/go for no-login trackers).
+  const [participantId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem('scq-participant-id')
+  })
+  // We can track if we're logged in OR this device has joined anonymously.
+  const hasIdentity = !!user || !!participantId
+  const participantRef = useRef<string | null>(null)
+
   const [race, setRace] = useState<RaceData | null>(null)
   const [course, setCourse] = useState<CourseData | null>(null)
   const [startClasses, setStartClasses] = useState<StartClass[]>([])
@@ -141,18 +150,21 @@ export default function TrackerPage() {
   useEffect(() => { courseRef.current = course }, [course])
   useEffect(() => { raceRef.current = race }, [race])
   useEffect(() => { userRef.current = user ? { id: user.id } : null }, [user])
+  useEffect(() => { participantRef.current = participantId }, [participantId])
   useEffect(() => { simModeRef.current = isSim }, [isSim])
   useEffect(() => { entryRef.current = entry }, [entry])
   useEffect(() => { startClassesRef.current = startClasses }, [startClasses])
   useEffect(() => { finishedRef.current = finished }, [finished])
 
-  // ── Auth gate ────────────────────────────────────────────────────────────────
+  // ── Identity gate ──────────────────────────────────────────────────────────
+  // Logged-in members are fine. Anonymous devices need a participant id (set by
+  // the /race/go join flow). No identity at all -> send them to /race/go to join.
   useEffect(() => {
     if (authLoading) return
-    if (!user) {
-      router.replace(`/login?redirect=/race/tracker/${token}`)
+    if (!user && !participantId) {
+      router.replace(`/race/go/${token}`)
     }
-  }, [authLoading, user, token, router])
+  }, [authLoading, user, participantId, token, router])
 
   // ── Online/offline listeners + reconnect flush ────────────────────────────────
   useEffect(() => {
@@ -173,10 +185,10 @@ export default function TrackerPage() {
 
   // ── Load race data (online, with offline cache fallback) ──────────────────────
   useEffect(() => {
-    if (!user || !token) return
+    if (!hasIdentity || !token) return
     void loadRaceData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, token])
+  }, [hasIdentity, token])
 
   async function loadRaceData() {
     const supabase = getBrowserClient()
@@ -259,13 +271,16 @@ export default function TrackerPage() {
       }
     }
 
-    const { data: entryData } = await supabase
+    // Find this device/member's entry (by user_id if logged in, else participant_id).
+    let entryQuery = supabase
       .from('race_entries')
       .select('id, helm_name, finish_time, laps_completed')
       .eq('race_id', r.id)
-      .eq('user_id', user!.id)
       .limit(1)
-      .maybeSingle()
+    entryQuery = user
+      ? entryQuery.eq('user_id', user.id)
+      : entryQuery.eq('participant_id', participantId!)
+    const { data: entryData } = await entryQuery.maybeSingle()
     if (entryData) {
       setEntry(entryData as EntryData)
       loadedEntry = entryData as EntryData
@@ -391,10 +406,11 @@ export default function TrackerPage() {
       setAccuracyM(acc)
 
       // TRAINING MODE: never write to the DB — pure client-side simulation.
-      if (!isSim && raceRef.current && userRef.current) {
+      if (!isSim && raceRef.current && (userRef.current || participantRef.current)) {
         void savePosition({
           raceId: raceRef.current.id,
-          userId: userRef.current.id,
+          userId: userRef.current?.id ?? null,
+          participantId: userRef.current ? null : participantRef.current,
           entryId: entryRef.current?.id ?? null,
           lat,
           lon,
@@ -418,7 +434,7 @@ export default function TrackerPage() {
 
   // ── GPS watch (real) OR simulator (training) + offline queue ─────────────────────
   useEffect(() => {
-    if (!race || !user) return
+    if (!race || !hasIdentity) return
 
     // TRAINING MODE: drive the UI from the synthetic engine, no real GPS/DB.
     if (isSim && course) {
@@ -483,7 +499,7 @@ export default function TrackerPage() {
       clearInterval(flushInterval)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [race, user, isSim, course, processFix])
+  }, [race, hasIdentity, isSim, course, processFix])
 
   // ── Wake lock (keep screen/GPS alive) ──────────────────────────────────────────
   useEffect(() => {
