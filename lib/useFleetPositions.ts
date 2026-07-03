@@ -19,6 +19,11 @@ export interface FleetBoat {
   speedKts: number | null
   headingDeg: number | null
   recordedAt: string
+  // Progress (for standings)
+  lapsCompleted: number
+  lastMarkIndex: number
+  finishTime: string | null
+  elapsedSeconds: number | null
 }
 
 interface EntryRow {
@@ -26,6 +31,10 @@ interface EntryRow {
   boat_name: string | null
   helm_name: string | null
   status: string
+  laps_completed: number | null
+  last_mark_index: number | null
+  finish_time: string | null
+  elapsed_seconds: number | null
 }
 
 interface PositionRow {
@@ -62,6 +71,10 @@ export function useFleetPositions(raceId: string | null) {
         speedKts: pos.speed_kts,
         headingDeg: pos.heading_deg,
         recordedAt: pos.recorded_at,
+        lapsCompleted: entry.laps_completed ?? 0,
+        lastMarkIndex: entry.last_mark_index ?? 0,
+        finishTime: entry.finish_time ?? null,
+        elapsedSeconds: entry.elapsed_seconds ?? null,
       })
     }
     // Most recently updated first.
@@ -76,7 +89,7 @@ export function useFleetPositions(raceId: string | null) {
 
     const { data: ents } = await supabase
       .from('race_entries')
-      .select('id, boat_name, helm_name, status')
+      .select('id, boat_name, helm_name, status, laps_completed, last_mark_index, finish_time, elapsed_seconds')
       .eq('race_id', raceId)
     entriesRef.current = new Map((ents ?? []).map((e) => [e.id, e as EntryRow]))
 

@@ -354,6 +354,15 @@ export default function TrackerPage() {
         } else {
           nextMarkIndexRef.current = nmi + 1
         }
+        // Persist progress for live standings (not in training mode).
+        const e = entryRef.current
+        if (e && !simModeRef.current && navigator.onLine) {
+          const supabase = getBrowserClient()
+          void supabase
+            .from('race_entries')
+            .update({ last_mark_index: nextMarkIndexRef.current, laps_completed: currentLapRef.current - 1 })
+            .eq('id', e.id)
+        }
       }
     }
 
