@@ -145,6 +145,9 @@ export default function RaceCentrePage() {
   const [course, setCourse] = useState<CourseData | null>(null)
   const [showText, setShowText] = useState(false)
   const [copied, setCopied] = useState(false)
+  // Member's own details, to build a pre-filled no-login tracking link.
+  const [myBoat, setMyBoat] = useState<{ boat_name: string; sail_number: string | null } | null>(null)
+  const [myName, setMyName] = useState<string>('')
 
   // Auth gate: redirect to login if not signed in
   useEffect(() => {
@@ -235,6 +238,24 @@ export default function RaceCentrePage() {
         }
       }
 
+      // Member's own boat + name -> pre-filled tracking link (smarts in the link).
+      if (user) {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .maybeSingle()
+        if (prof?.full_name) setMyName(prof.full_name)
+        const { data: boat } = await supabase
+          .from('boats')
+          .select('boat_name, sail_number')
+          .eq('owner_id', user.id)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        if (boat) setMyBoat(boat as { boat_name: string; sail_number: string | null })
+      }
+
       setLoading(false)
     }
 
@@ -249,6 +270,17 @@ export default function RaceCentrePage() {
     : null
   const cleanNotes = stripStartTimeLine(race?.notes ?? null)
   const raceIsOn = race?.status === 'live' || race?.status === 'confirmed'
+
+  // Pre-filled no-login tracking link carrying the member's details in the URL.
+  const goLink = (() => {
+    if (!race) return `/race/go/${token}`
+    const qs = new URLSearchParams()
+    if (myBoat?.boat_name) qs.set('boat', myBoat.boat_name)
+    if (myBoat?.sail_number) qs.set('sail', myBoat.sail_number)
+    if (myName) qs.set('helm', myName)
+    const q = qs.toString()
+    return `/race/go/${race.entry_token}${q ? `?${q}` : ''}`
+  })()
 
   // ── Text instructions ──────────────────────────────────────────────────────
 
@@ -431,11 +463,11 @@ export default function RaceCentrePage() {
                 <span className="text-xs font-normal opacity-80">Map, marks, countdown &amp; instruments</span>
               </Link>
               <Link
-                href={`/race/tracker/${race.entry_token}`}
+                href={goLink}
                 className="inline-flex flex-col items-center justify-center gap-1 rounded-lg bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white font-semibold px-6 py-4 text-base transition-colors"
               >
                 <span>📡 Tracker Only</span>
-                <span className="text-xs font-normal opacity-80">Beacon mode for your own instruments</span>
+                <span className="text-xs font-normal opacity-80">Beacon mode — details pre-filled</span>
               </Link>
             </div>
           ) : (
