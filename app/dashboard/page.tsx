@@ -202,10 +202,10 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <Link
-                    href={`/race/live/${race.entry_token}`}
+                    href={`/race/centre/${race.entry_token}`}
                     className="shrink-0 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium"
                   >
-                    📱 Join Race
+                    📱 Race Centre
                   </Link>
                 </div>
               </Card>

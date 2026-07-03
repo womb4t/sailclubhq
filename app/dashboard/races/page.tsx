@@ -298,10 +298,10 @@ export default function RacesPage() {
                     <RaceRow race={r} />
                     <div className="px-3 pb-3">
                       <Link
-                        href={`/race/live/${r.entry_token}`}
+                        href={`/race/centre/${r.entry_token}`}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium"
                       >
-                        📱 Join Race
+                        📱 Race Centre
                       </Link>
                     </div>
                   </div>
