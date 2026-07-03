@@ -10,16 +10,22 @@ interface RaceCardProps {
 
 const statusVariant: Record<string, 'default' | 'info' | 'success' | 'warning' | 'danger'> = {
   draft: 'default',
-  open: 'info',
-  active: 'success',
-  finished: 'warning',
+  planned: 'info',
+  confirmed: 'success',
+  live: 'danger',
+  cancelled: 'danger',
+  completed: 'warning',
+  archived: 'default',
 }
 
 const statusLabel: Record<string, string> = {
   draft: 'Draft',
-  open: 'Open',
-  active: 'Racing',
-  finished: 'Finished',
+  planned: 'Planned',
+  confirmed: 'Confirmed',
+  live: 'Racing Live 🔴',
+  cancelled: 'Cancelled',
+  completed: 'Completed',
+  archived: 'Archived',
 }
 
 function formatDate(dateStr: string): string {

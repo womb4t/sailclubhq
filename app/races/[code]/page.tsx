@@ -9,17 +9,19 @@ function getSupabase() {
   )
 }
 
-type BadgeVariant = 'info' | 'success' | 'warning'
+type BadgeVariant = 'info' | 'success' | 'warning' | 'danger'
 
 const STATUS_VARIANT: Record<string, BadgeVariant> = {
   planned: 'info',
   confirmed: 'success',
+  live: 'danger',
   completed: 'warning',
 }
 
 const STATUS_LABEL: Record<string, string> = {
   planned: 'Planned',
   confirmed: 'Confirmed',
+  live: 'Racing Live 🔴',
   completed: 'Completed',
 }
 
@@ -27,6 +29,7 @@ const BADGE_CLASSES: Record<BadgeVariant, string> = {
   info: 'bg-blue-100 text-blue-800',
   success: 'bg-green-100 text-green-800',
   warning: 'bg-amber-100 text-amber-800',
+  danger: 'bg-red-100 text-red-800',
 }
 
 function formatDate(dateStr: string): string {
@@ -95,11 +98,13 @@ export default async function PublicRaceCalendarPage({ params }: PageProps) {
     .from('races')
     .select('id, name, race_number, series, race_date, notes, status, entry_token')
     .eq('club_id', club.id)
-    .in('status', ['planned', 'confirmed', 'completed'])
+    .in('status', ['planned', 'confirmed', 'live', 'completed'])
     .order('race_date', { ascending: false })
 
   const allRaces = (races ?? []) as Race[]
   const today = new Date().toISOString().split('T')[0]
+
+  const live = allRaces.filter((r) => r.status === 'live')
 
   const upcoming = allRaces.filter(
     (r) => (r.status === 'planned' || r.status === 'confirmed') && r.race_date >= today
@@ -140,6 +145,17 @@ export default async function PublicRaceCalendarPage({ params }: PageProps) {
           </div>
         ) : (
           <>
+            {live.length > 0 && (
+              <section>
+                <h2 className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-3">Racing Now</h2>
+                <div className="space-y-3">
+                  {live.map((race) => (
+                    <RaceCard key={race.id} race={race} />
+                  ))}
+                </div>
+              </section>
+            )}
+
             {upcoming.length > 0 && (
               <section>
                 <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Upcoming</h2>
@@ -213,6 +229,14 @@ function RaceCard({ race }: { race: Race }) {
             className="flex-shrink-0 inline-flex items-center gap-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-3 py-1.5 transition-colors"
           >
             Enter ↗
+          </Link>
+        )}
+        {race.status === 'live' && (
+          <Link
+            href={`/race/live/${race.entry_token}`}
+            className="flex-shrink-0 inline-flex items-center gap-1 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-3 py-1.5 transition-colors"
+          >
+            📱 Race Nav
           </Link>
         )}
       </div>

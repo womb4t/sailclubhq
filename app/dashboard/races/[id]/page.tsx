@@ -800,18 +800,12 @@ export default function RaceDetailPage() {
               >
                 📱 Race Navigation
               </Link>
-              <Link
-                href={`/race/watch/${race.entry_token}`}
-                className="flex items-center gap-2 px-3 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
-              >
+              <span className="flex items-center gap-2 px-3 py-2.5 bg-gray-100 text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed">
                 👁 Spectator View <span className="text-xs text-gray-400">(coming soon)</span>
-              </Link>
-              <Link
-                href={`/race/control/${race.entry_token}`}
-                className="flex items-center gap-2 px-3 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors"
-              >
+              </span>
+              <span className="flex items-center gap-2 px-3 py-2.5 bg-gray-100 text-gray-400 rounded-lg text-sm font-medium cursor-not-allowed">
                 🎛 Race Control <span className="text-xs text-gray-400">(coming soon)</span>
-              </Link>
+              </span>
             </div>
           </div>
         </Card>
