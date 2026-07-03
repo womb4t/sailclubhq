@@ -75,7 +75,7 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-function UpcomingRaceCard({ race, clubCode, isLoggedIn }: { race: Race; clubCode: string; isLoggedIn: boolean }) {
+function UpcomingRaceCard({ race, clubCode, isLoggedIn, entryCount }: { race: Race; clubCode: string; isLoggedIn: boolean; entryCount?: number }) {
   const startTime = extractStartTime(race.notes)
   const enterHref = isLoggedIn
     ? `/race/join/${race.entry_token}`
@@ -100,6 +100,9 @@ function UpcomingRaceCard({ race, clubCode, isLoggedIn }: { race: Race; clubCode
               <span className="ml-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg">🏁 Start: {startTime}</span>
             )}
           </p>
+          {entryCount !== undefined && entryCount > 0 && (
+            <p className="text-xs text-gray-400 mt-0.5">⛵ {entryCount} {entryCount === 1 ? 'entry' : 'entries'}</p>
+          )}
         </div>
         <Link
           href={enterHref}
@@ -134,6 +137,7 @@ export default function ClubHomePage() {
 
   const [club, setClub] = useState<Club | null>(null)
   const [upcoming, setUpcoming] = useState<Race[]>([])
+  const [entryCounts, setEntryCounts] = useState<Record<string, number>>({})
   const [results, setResults] = useState<Race[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -194,6 +198,24 @@ export default function ClubHomePage() {
 
       setUpcoming((upcomingRaces ?? []) as Race[])
       setResults((completedRaces ?? []) as Race[])
+
+      // Entry counts for upcoming races (excludes withdrawn)
+      const upcomingIds = (upcomingRaces ?? []).map((r) => r.id)
+      if (upcomingIds.length > 0) {
+        const { data: entryRows } = await supabase
+          .from('race_entries')
+          .select('race_id')
+          .in('race_id', upcomingIds)
+          .neq('status', 'withdrawn')
+        if (entryRows) {
+          const counts: Record<string, number> = {}
+          for (const row of entryRows as { race_id: string }[]) {
+            counts[row.race_id] = (counts[row.race_id] ?? 0) + 1
+          }
+          setEntryCounts(counts)
+        }
+      }
+
       setLoading(false)
     }
 
@@ -287,7 +309,7 @@ export default function ClubHomePage() {
           ) : (
             <div className="space-y-3">
               {upcoming.map((race) => (
-                <UpcomingRaceCard key={race.id} race={race} clubCode={code} isLoggedIn={isLoggedIn} />
+                <UpcomingRaceCard key={race.id} race={race} clubCode={code} isLoggedIn={isLoggedIn} entryCount={entryCounts[race.id]} />
               ))}
             </div>
           )}

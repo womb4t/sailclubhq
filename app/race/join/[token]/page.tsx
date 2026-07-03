@@ -36,7 +36,7 @@ interface EnteredBoat {
   helm_name: string | null
 }
 
-type Step = 'loading' | 'profile-incomplete' | 'role' | 'helm-boat' | 'crew-boat' | 'confirm' | 'done'
+type Step = 'loading' | 'profile-incomplete' | 'already-entered' | 'role' | 'helm-boat' | 'crew-boat' | 'confirm' | 'done'
 type EntryRole = 'helm' | 'crew'
 
 function formatDate(dateStr: string) {
@@ -93,6 +93,9 @@ export default function RaceJoinPage() {
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [myEntry, setMyEntry] = useState<{ id: string; role: string; boat_name: string | null } | null>(null)
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [entryCount, setEntryCount] = useState<number | null>(null)
   const [successEntry, setSuccessEntry] = useState<{
     boat_name: string | null
     class_name: string | null
@@ -170,11 +173,37 @@ export default function RaceJoinPage() {
         if (boats.length > 0) setSelectedBoatId(boats[0].id)
       }
 
+      // Check whether this user already has an active entry
+      const { data: mine } = await supabase
+        .from('race_entries')
+        .select('id, role, boats(boat_name)')
+        .eq('race_id', race!.id)
+        .eq('user_id', user!.id)
+        .neq('status', 'withdrawn')
+        .limit(1)
+
+      if (mine && mine.length > 0) {
+        const m = mine[0] as { id: string; role: string; boats: { boat_name?: string } | { boat_name?: string }[] | null }
+        const boat = Array.isArray(m.boats) ? m.boats[0] : m.boats
+        setMyEntry({ id: m.id, role: m.role, boat_name: boat?.boat_name ?? null })
+        setStep('already-entered')
+        return
+      }
+
+      // Entry count for display
+      const { count: totalEntries } = await supabase
+        .from('race_entries')
+        .select('*', { count: 'exact', head: true })
+        .eq('race_id', race!.id)
+        .neq('status', 'withdrawn')
+      setEntryCount(totalEntries ?? 0)
+
       const { data: entries } = await supabase
         .from('race_entries')
         .select('id, boat_id, helm_name, boats(boat_name, sail_number, class)')
         .eq('race_id', race!.id)
         .eq('role', 'helm')
+        .neq('status', 'withdrawn')
 
       if (entries) {
         const mapped: EnteredBoat[] = (entries as Record<string, unknown>[]).map((e) => {
@@ -232,8 +261,8 @@ export default function RaceJoinPage() {
     try {
       if (role === 'helm') {
         if (selectedBoatId) {
-          const { data: dup } = await supabase.from('race_entries').select('id').eq('race_id', race!.id).eq('boat_id', selectedBoatId).maybeSingle()
-          if (dup) { setError('This boat is already entered in this race.'); setSubmitting(false); return }
+          const { data: dup } = await supabase.from('race_entries').select('id').eq('race_id', race!.id).eq('boat_id', selectedBoatId).neq('status', 'withdrawn').limit(1)
+          if (dup && dup.length > 0) { setError('This boat is already entered in this race.'); setSubmitting(false); return }
         }
         const { error: entryErr } = await supabase.from('race_entries').insert({
           race_id: race!.id, boat_id: selectedBoatId || null, class_id: selectedClassId || null,
@@ -281,6 +310,24 @@ export default function RaceJoinPage() {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     }
     setSubmitting(false)
+  }
+
+  async function handleWithdraw() {
+    if (!myEntry) return
+    setWithdrawing(true)
+    setError('')
+    const supabase = getBrowserClient()
+    const { error: err } = await supabase
+      .from('race_entries')
+      .update({ status: 'withdrawn' })
+      .eq('id', myEntry.id)
+    if (err) {
+      setError(err.message)
+    } else {
+      setMyEntry(null)
+      setStep('role')
+    }
+    setWithdrawing(false)
   }
 
   const startTime = race ? extractStartTime(race.notes) : null
@@ -378,6 +425,30 @@ export default function RaceJoinPage() {
               <Card><div className="text-center py-6 text-gray-400 text-sm">Loading your details...</div></Card>
             )}
 
+            {step === 'already-entered' && myEntry && (
+              <Card>
+                <div className="text-center py-6 space-y-3">
+                  <div className="text-5xl">⛵</div>
+                  <h2 className="text-xl font-bold text-gray-900">You&apos;re already entered</h2>
+                  <p className="text-sm text-gray-600">
+                    {myEntry.role === 'helm' ? 'Entered as helm' : 'Entered as crew'}
+                    {myEntry.boat_name && <span> on <strong>{myEntry.boat_name}</strong></span>}
+                  </p>
+                  {error && <p className="text-sm text-red-600">{error}</p>}
+                  <div className="flex flex-col gap-2 pt-2">
+                    <Button variant="danger" size="lg" className="w-full" loading={withdrawing} onClick={handleWithdraw}>
+                      Withdraw entry
+                    </Button>
+                    {race?.club?.invite_code && (
+                      <Link href={`/club/${race.club.invite_code}`}>
+                        <Button variant="secondary" size="lg" className="w-full">Back to club</Button>
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            )}
+
             {step === 'profile-incomplete' && (
               <Card>
                 <div className="space-y-3">
@@ -393,6 +464,9 @@ export default function RaceJoinPage() {
             {step === 'role' && (
               <div className="space-y-3">
                 {profile && <EmergencyBanner profile={profile} />}
+                {entryCount !== null && (
+                  <p className="text-center text-xs text-gray-500">{entryCount} {entryCount === 1 ? 'entry' : 'entries'} so far</p>
+                )}
                 <Card>
                   <CardHeader><CardTitle>How are you racing?</CardTitle></CardHeader>
                   <div className="mt-2 space-y-3">
@@ -407,7 +481,7 @@ export default function RaceJoinPage() {
                       <span className="text-3xl">🤝</span>
                       <div>
                         <div className="font-semibold text-gray-900">Crewing</div>
-                        <div className="text-sm text-gray-500">Join someone else's boat</div>
+                        <div className="text-sm text-gray-500">Join someone else&apos;s boat</div>
                       </div>
                     </button>
                   </div>
