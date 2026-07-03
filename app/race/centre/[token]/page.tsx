@@ -506,7 +506,7 @@ export default function RaceCentrePage() {
           {/* Training mode */}
           <div className="mt-4 pt-4 border-t border-gray-100">
             <p className="text-xs font-medium text-gray-500 mb-2 text-center">🎓 Never used it before? Practise first — nothing is recorded.</p>
-            <div className="grid sm:grid-cols-3 gap-2">
+            <div className="grid sm:grid-cols-2 gap-2">
               <Link
                 href={`/race/live/${race.entry_token}?sim=1`}
                 className="inline-flex items-center justify-center rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-medium px-4 py-2 text-sm transition-colors"
@@ -518,12 +518,6 @@ export default function RaceCentrePage() {
                 className="inline-flex items-center justify-center rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-medium px-4 py-2 text-sm transition-colors"
               >
                 Try Tracker
-              </Link>
-              <Link
-                href="/race/simulator"
-                className="inline-flex items-center justify-center rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-medium px-4 py-2 text-sm transition-colors"
-              >
-                Demo Course
               </Link>
             </div>
           </div>
