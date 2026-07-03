@@ -295,23 +295,3 @@ export class GpsSimulator {
     })
   }
 }
-
-// ── Built-in demo course (Nieuwpoort-ish square, for the standalone simulator) ──
-// Small windward/leeward course so the standalone page works with no real race.
-export const DEMO_COURSE: SimCourse = {
-  laps: 2,
-  start_line_lat1: 51.155,
-  start_line_lng1: 2.72,
-  start_line_lat2: 51.155,
-  start_line_lng2: 2.723,
-  finish_line_lat1: null,
-  finish_line_lng1: null,
-  finish_line_lat2: null,
-  finish_line_lng2: null,
-  finish_at_start: true,
-  marks: [
-    { lat: 51.162, lon: 2.7215, name: 'Windward', roundingSide: 'port', index: 0 },
-    { lat: 51.1585, lon: 2.726, name: 'Wing', roundingSide: 'starboard', index: 1 },
-    { lat: 51.155, lon: 2.7215, name: 'Leeward', roundingSide: 'port', index: 2 },
-  ],
-}
