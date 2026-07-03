@@ -148,6 +148,9 @@ export default function RaceCentrePage() {
   // Member's own details, to build a pre-filled no-login tracking link.
   const [myBoat, setMyBoat] = useState<{ boat_name: string; sail_number: string | null } | null>(null)
   const [myName, setMyName] = useState<string>('')
+  // Fleet (entries) + organiser remove.
+  const [entries, setEntries] = useState<Array<{ id: string; boat_name: string | null; helm_name: string | null; status: string }>>([])
+  const [removingId, setRemovingId] = useState<string | null>(null)
 
   // Auth gate: redirect to login if not signed in
   useEffect(() => {
@@ -256,11 +259,28 @@ export default function RaceCentrePage() {
         if (boat) setMyBoat(boat as { boat_name: string; sail_number: string | null })
       }
 
+      // Fleet: everyone entered in this race.
+      const { data: ents } = await supabase
+        .from('race_entries')
+        .select('id, boat_name, helm_name, status')
+        .eq('race_id', raceData.id)
+        .order('created_at', { ascending: true })
+      if (ents) setEntries(ents as typeof entries)
+
       setLoading(false)
     }
 
     load()
   }, [token, authLoading, user])
+
+  async function removeEntry(id: string) {
+    if (!confirm('Remove this boat from the race?')) return
+    setRemovingId(id)
+    const supabase = getBrowserClient()
+    const { error: delErr } = await supabase.from('race_entries').delete().eq('id', id)
+    if (!delErr) setEntries((prev) => prev.filter((e) => e.id !== id))
+    setRemovingId(null)
+  }
 
   // ── Derived ─────────────────────────────────────────────────────────────────
 
@@ -507,6 +527,34 @@ export default function RaceCentrePage() {
               </Link>
             </div>
           </div>
+        </Card>
+
+        {/* Fleet + organiser remove */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Fleet ({entries.length})</CardTitle>
+          </CardHeader>
+          {entries.length === 0 ? (
+            <p className="text-sm text-gray-500">No boats entered yet. Share the tracking link to get people on the water.</p>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {entries.map((e) => (
+                <li key={e.id} className="flex items-center justify-between py-2 gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{e.boat_name || 'Unnamed boat'}</p>
+                    {e.helm_name && <p className="text-xs text-gray-500 truncate">{e.helm_name}</p>}
+                  </div>
+                  <button
+                    onClick={() => removeEntry(e.id)}
+                    disabled={removingId === e.id}
+                    className="shrink-0 text-xs rounded-lg bg-red-50 hover:bg-red-100 text-red-600 px-3 py-1.5 font-medium disabled:opacity-50"
+                  >
+                    {removingId === e.id ? 'Removing…' : 'Remove'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
 
         {/* Start sequence */}

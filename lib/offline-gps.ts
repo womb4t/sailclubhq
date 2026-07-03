@@ -21,7 +21,8 @@ const RACE_CACHE_STORE = 'race-cache'
 export interface QueuedPosition {
   id?: number // auto-increment key (assigned by IndexedDB)
   raceId: string
-  userId: string
+  userId: string | null // null for anonymous (no-login) participants
+  participantId?: string | null // device id for anonymous participants
   entryId: string | null
   lat: number
   lon: number
@@ -177,6 +178,7 @@ export async function flushPositions(): Promise<FlushResult> {
       race_id: p.raceId,
       entry_id: p.entryId,
       user_id: p.userId,
+      participant_id: p.participantId ?? null,
       lat: p.lat,
       lon: p.lon,
       speed_kts: p.speedKts,
