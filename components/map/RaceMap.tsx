@@ -285,8 +285,11 @@ export default function RaceMap({
     rotationRef.current = bearing
     const container = containerRef.current
     if (container) {
-      container.style.transform = `rotate(${-bearing}deg)`
+      // Scale up while rotating so the rotated square always fills the viewport
+      // (no blank triangular corners), and animate for a smooth feel.
       container.style.transformOrigin = '50% 50%'
+      container.style.transition = 'transform 0.4s ease-out'
+      container.style.transform = `scale(1.5) rotate(${-bearing}deg)`
     }
   }, [currentPosition, courseUp, nextMarkIndex, courseMarks])
 
