@@ -10,7 +10,7 @@
 // results work, but nothing navigational is shown.
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { getBrowserClient } from '@/lib/supabase/browser'
 import { useAuth } from '@/context/AuthContext'
@@ -22,6 +22,7 @@ import {
   cacheRaceData,
   getCachedRaceByToken,
 } from '@/lib/offline-gps'
+import { GpsSimulator, type SimCourse } from '@/lib/gps-simulator'
 
 // ── Types (mirrors the live page shapes) ───────────────────────────────────────
 interface RaceData {
@@ -101,8 +102,11 @@ function linesIntersect(
 export default function TrackerPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const token = params.token as string
+  const isSim = searchParams.get('sim') === '1'
   const { user, loading: authLoading } = useAuth()
+  const simRef = useRef<GpsSimulator | null>(null)
 
   const [race, setRace] = useState<RaceData | null>(null)
   const [course, setCourse] = useState<CourseData | null>(null)
@@ -125,6 +129,9 @@ export default function TrackerPage() {
   // Refs for the GPS closure (avoid stale state)
   const courseRef = useRef<CourseData | null>(null)
   const entryRef = useRef<EntryData | null>(null)
+  const raceRef = useRef<RaceData | null>(null)
+  const userRef = useRef<{ id: string } | null>(null)
+  const simModeRef = useRef(false)
   const startClassesRef = useRef<StartClass[]>([])
   const prevPosRef = useRef<{ lat: number; lon: number } | null>(null)
   const nextMarkIndexRef = useRef(0)
@@ -132,6 +139,9 @@ export default function TrackerPage() {
   const finishedRef = useRef(false)
 
   useEffect(() => { courseRef.current = course }, [course])
+  useEffect(() => { raceRef.current = race }, [race])
+  useEffect(() => { userRef.current = user ? { id: user.id } : null }, [user])
+  useEffect(() => { simModeRef.current = isSim }, [isSim])
   useEffect(() => { entryRef.current = entry }, [entry])
   useEffect(() => { startClassesRef.current = startClasses }, [startClasses])
   useEffect(() => { finishedRef.current = finished }, [finished])
@@ -354,7 +364,8 @@ export default function TrackerPage() {
           setFinishTime(ft)
           if (typeof navigator.vibrate === 'function') navigator.vibrate([200, 100, 200, 100, 500])
           const e = entryRef.current
-          if (e && navigator.onLine) {
+          // TRAINING MODE: never write a finish time to the real DB.
+          if (e && navigator.onLine && !simModeRef.current) {
             const supabase = getBrowserClient()
             const startedAt = startClassesRef.current[0]?.start_time ?? null
             void supabase
@@ -371,47 +382,88 @@ export default function TrackerPage() {
     }
   }, [])
 
-  // ── GPS watch + offline queue ──────────────────────────────────────────────────
-  useEffect(() => {
-    if (!race || !user) return
-    if (!navigator.geolocation) {
-      // Defer the state update out of the effect body.
-      const t = setTimeout(() => setGpsStatus('error'), 0)
-      return () => clearTimeout(t)
-    }
+  // Shared fix handler: update UI, queue (unless simulating), run bg detection.
+  const processFix = useCallback(
+    (lat: number, lon: number, spd: number, hdg: number | null, acc: number, recordedAt: string) => {
+      setGpsStatus('active')
+      setSpeedKts(spd)
+      setHeadingDeg(hdg)
+      setAccuracyM(acc)
 
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        const lat = pos.coords.latitude
-        const lon = pos.coords.longitude
-        const spd = (pos.coords.speed ?? 0) * 1.94384
-        const hdg = pos.coords.heading
-        const acc = pos.coords.accuracy
-        const recordedAt = new Date(pos.timestamp).toISOString()
-
-        setGpsStatus('active')
-        setSpeedKts(spd)
-        setHeadingDeg(hdg != null && !Number.isNaN(hdg) ? hdg : null)
-        setAccuracyM(acc)
-
-        // Queue to IndexedDB (survives signal loss).
+      // TRAINING MODE: never write to the DB — pure client-side simulation.
+      if (!isSim && raceRef.current && userRef.current) {
         void savePosition({
-          raceId: race.id,
-          userId: user.id,
+          raceId: raceRef.current.id,
+          userId: userRef.current.id,
           entryId: entryRef.current?.id ?? null,
           lat,
           lon,
           speedKts: spd,
-          headingDeg: hdg != null && !Number.isNaN(hdg) ? hdg : null,
+          headingDeg: hdg,
           accuracyM: acc,
           recordedAt,
         }).then(() => {
           setRecordedCount((n) => n + 1)
           void getUnsyncedCount().then(setUnsyncedCount)
         })
+      } else if (isSim) {
+        setRecordedCount((n) => n + 1)
+      }
 
-        handleGpsBackground(lat, lon, spd)
-        prevPosRef.current = { lat, lon }
+      handleGpsBackground(lat, lon, spd)
+      prevPosRef.current = { lat, lon }
+    },
+    [isSim, handleGpsBackground],
+  )
+
+  // ── GPS watch (real) OR simulator (training) + offline queue ─────────────────────
+  useEffect(() => {
+    if (!race || !user) return
+
+    // TRAINING MODE: drive the UI from the synthetic engine, no real GPS/DB.
+    if (isSim && course) {
+      const simCourse: SimCourse = {
+        laps: course.laps,
+        marks: course.marks,
+        start_line_lat1: course.start_line_lat1,
+        start_line_lng1: course.start_line_lng1,
+        start_line_lat2: course.start_line_lat2,
+        start_line_lng2: course.start_line_lng2,
+        finish_line_lat1: course.finish_line_lat1,
+        finish_line_lng1: course.finish_line_lng1,
+        finish_line_lat2: course.finish_line_lat2,
+        finish_line_lng2: course.finish_line_lng2,
+        finish_at_start: course.finish_at_start,
+      }
+      const sim = new GpsSimulator(
+        simCourse,
+        { mode: 'auto', tickMs: 1000, speedMultiplier: 8, boatSpeedKts: 6 },
+        (p) => processFix(p.lat, p.lon, p.speed_kts, Math.round(p.heading), p.accuracy_m, p.recorded_at),
+      )
+      simRef.current = sim
+      sim.start()
+      return () => {
+        sim.stop()
+        simRef.current = null
+      }
+    }
+
+    if (!navigator.geolocation) {
+      const t = setTimeout(() => setGpsStatus('error'), 0)
+      return () => clearTimeout(t)
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const hdg = pos.coords.heading
+        processFix(
+          pos.coords.latitude,
+          pos.coords.longitude,
+          (pos.coords.speed ?? 0) * 1.94384,
+          hdg != null && !Number.isNaN(hdg) ? hdg : null,
+          pos.coords.accuracy,
+          new Date(pos.timestamp).toISOString(),
+        )
       },
       (err) => {
         console.error('GPS error:', err)
@@ -420,8 +472,9 @@ export default function TrackerPage() {
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 },
     )
 
-    // Periodic flush to server.
+    // Periodic flush to server (real mode only).
     const flushInterval = setInterval(() => {
+      if (isSim) return
       void flushPositions().then(() => getUnsyncedCount().then(setUnsyncedCount))
     }, 30000)
 
@@ -430,7 +483,7 @@ export default function TrackerPage() {
       clearInterval(flushInterval)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [race, user])
+  }, [race, user, isSim, course, processFix])
 
   // ── Wake lock (keep screen/GPS alive) ──────────────────────────────────────────
   useEffect(() => {
@@ -478,7 +531,7 @@ export default function TrackerPage() {
 
   async function stopTracking() {
     // One final flush attempt before leaving.
-    await flushPositions().catch(() => {})
+    if (!isSim) await flushPositions().catch(() => {})
     router.push(`/race/centre/${token}`)
   }
 
@@ -509,8 +562,15 @@ export default function TrackerPage() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col">
+      {/* Training-mode banner */}
+      {isSim && (
+        <div className="bg-indigo-500 text-white text-center text-sm font-semibold py-2 px-3">
+          🎓 Training Mode — simulated GPS, nothing is recorded
+        </div>
+      )}
+
       {/* Offline banner */}
-      {!isOnline && (
+      {!isSim && !isOnline && (
         <div className="bg-amber-500 text-slate-900 text-center text-sm font-semibold py-2 px-3">
           📡 Offline — {unsyncedCount} position{unsyncedCount === 1 ? '' : 's'} queued, will sync when connected
         </div>

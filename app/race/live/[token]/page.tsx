@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { getBrowserClient } from '@/lib/supabase/browser'
@@ -14,6 +14,7 @@ import {
   getUnsyncedCount,
   registerReconnectFlush,
 } from '@/lib/offline-gps'
+import { GpsSimulator, type SimCourse } from '@/lib/gps-simulator'
 import type { RaceMapProps, RaceMapMark } from '@/components/map/RaceMap'
 
 // Dynamically import to avoid SSR issues with Leaflet
@@ -176,6 +177,10 @@ type CountdownPhase = 'pre-warning' | 'warning' | 'prep' | 'start'
 
 export default function LiveRacePage() {
   const params = useParams()
+  const searchParams = useSearchParams()
+  const isSim = searchParams.get('sim') === '1'
+  const isSimRef = useRef(false)
+  const simRef = useRef<GpsSimulator | null>(null)
   const token = params?.token as string
   const { user } = useAuth()
 
@@ -254,6 +259,7 @@ export default function LiveRacePage() {
   useEffect(() => { startClassesRef.current = startClasses }, [startClasses])
   useEffect(() => { raceRef.current = race }, [race])
   useEffect(() => { userRef.current = user ? { id: user.id } : null }, [user])
+  useEffect(() => { isSimRef.current = isSim }, [isSim])
 
   // ── Load race data ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -465,8 +471,50 @@ export default function LiveRacePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [race])
 
-  // ── GPS tracking ───────────────────────────────────────────────────────────
+  // ── GPS tracking (real) OR simulator (training) ─────────────────────────────
   useEffect(() => {
+    // TRAINING MODE: drive the full nav UI from the synthetic engine, no DB.
+    if (isSim && course) {
+      const simCourse: SimCourse = {
+        laps: course.laps,
+        marks: course.marks,
+        start_line_lat1: course.start_line_lat1,
+        start_line_lng1: course.start_line_lng1,
+        start_line_lat2: course.start_line_lat2,
+        start_line_lng2: course.start_line_lng2,
+        finish_line_lat1: course.finish_line_lat1,
+        finish_line_lng1: course.finish_line_lng1,
+        finish_line_lat2: course.finish_line_lat2,
+        finish_line_lng2: course.finish_line_lng2,
+        finish_at_start: course.finish_at_start,
+      }
+      const sim = new GpsSimulator(
+        simCourse,
+        { mode: 'auto', tickMs: 1000, speedMultiplier: 8, boatSpeedKts: 6 },
+        (p) => {
+          const gpsPos: GpsPosition = {
+            lat: p.lat,
+            lon: p.lon,
+            heading: p.heading,
+            speed_kts: p.speed_kts,
+            accuracy_m: p.accuracy_m,
+            recorded_at: p.recorded_at,
+          }
+          setGpsStatus('active')
+          setCurrentPos(gpsPos)
+          setMapCenter([gpsPos.lat, gpsPos.lon])
+          handleGpsUpdate(gpsPos)
+          prevPosRef.current = gpsPos
+        },
+      )
+      simRef.current = sim
+      sim.start()
+      return () => {
+        sim.stop()
+        simRef.current = null
+      }
+    }
+
     if (!navigator.geolocation) {
       setGpsStatus('error')
       return
@@ -514,11 +562,11 @@ export default function LiveRacePage() {
 
     return () => navigator.geolocation.clearWatch(watchId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [isSim, course])
 
   // ── GPS batch flush (offline-first via IndexedDB queue) ──────────────────────
   useEffect(() => {
-    if (!race || !user) return
+    if (!race || !user || isSim) return
     const interval = setInterval(() => {
       void flushPositions().then(() => getUnsyncedCount().then(setUnsyncedCount))
     }, 30000)
@@ -597,7 +645,7 @@ export default function LiveRacePage() {
             // Cleared! Came back correctly
             setOcs(false)
             if (typeof navigator.vibrate === 'function') navigator.vibrate([100, 50, 100, 50, 100])
-            if (entryRef.current) {
+            if (entryRef.current && !isSimRef.current) {
               const supabase = getBrowserClient()
               supabase.from('race_entries').update({ status: 'racing' }).eq('id', entryRef.current.id)
             }
@@ -633,7 +681,7 @@ export default function LiveRacePage() {
           playLongTone(1500)
           if (typeof navigator.vibrate === 'function') navigator.vibrate([200, 100, 200, 100, 500])
 
-          if (entryRef.current) {
+          if (entryRef.current && !isSimRef.current) {
             const supabase = getBrowserClient()
             const startedAt = startClassesRef.current[0]?.start_time ?? null
             supabase.from('race_entries').update({
@@ -683,13 +731,13 @@ export default function LiveRacePage() {
               setOcs(true)
               if (typeof navigator.vibrate === 'function') navigator.vibrate([300, 100, 300, 100, 300])
               // Update entry status
-              if (entryRef.current) {
+              if (entryRef.current && !isSimRef.current) {
                 const supabase = getBrowserClient()
                 supabase.from('race_entries').update({ status: 'OCS' }).eq('id', entryRef.current.id)
               }
 
               // Count OCS boats for this race to detect general recall threshold
-              checkOcsCount(firstClass.id)
+              if (!isSimRef.current) checkOcsCount(firstClass.id)
             }
           }
         }
@@ -859,8 +907,15 @@ export default function LiveRacePage() {
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-900">
 
+      {/* Training-mode banner */}
+      {isSim && (
+        <div className="bg-indigo-500 text-white px-3 py-2 text-center text-xs font-semibold shrink-0 z-20">
+          🎓 Training Mode — simulated GPS, nothing is recorded
+        </div>
+      )}
+
       {/* Offline banner */}
-      {!isOnline && (
+      {!isSim && !isOnline && (
         <div className="bg-amber-500 text-slate-900 px-3 py-2 text-center text-xs font-semibold shrink-0 z-20">
           📡 Offline — {unsyncedCount} position{unsyncedCount === 1 ? '' : 's'} queued, will sync when reconnected
         </div>
