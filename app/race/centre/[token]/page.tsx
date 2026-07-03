@@ -419,23 +419,37 @@ export default function RaceCentrePage() {
           </p>
         </div>
 
-        {/* Race Nav */}
-        <Card padding="lg" className="text-center">
+        {/* Race Nav + Tracker */}
+        <Card padding="lg">
           {raceIsOn ? (
-            <Link
-              href={`/race/live/${race.entry_token}`}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold px-8 py-3 text-base transition-colors w-full sm:w-auto"
-            >
-              📱 Open Race Nav
-            </Link>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Link
+                href={`/race/live/${race.entry_token}`}
+                className="inline-flex flex-col items-center justify-center gap-1 rounded-lg bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold px-6 py-4 text-base transition-colors"
+              >
+                <span>📱 Full Race Nav</span>
+                <span className="text-xs font-normal opacity-80">Map, marks, countdown &amp; instruments</span>
+              </Link>
+              <Link
+                href={`/race/tracker/${race.entry_token}`}
+                className="inline-flex flex-col items-center justify-center gap-1 rounded-lg bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white font-semibold px-6 py-4 text-base transition-colors"
+              >
+                <span>📡 Tracker Only</span>
+                <span className="text-xs font-normal opacity-80">Beacon mode for your own instruments</span>
+              </Link>
+            </div>
           ) : (
-            <>
-              <Button size="lg" disabled className="w-full sm:w-auto">
-                📱 Open Race Nav
-              </Button>
-              <p className="text-sm text-gray-500 mt-2">Race Nav opens when racing starts.</p>
-            </>
+            <div className="text-center">
+              <div className="grid sm:grid-cols-2 gap-3">
+                <Button size="lg" disabled className="w-full">📱 Full Race Nav</Button>
+                <Button size="lg" disabled className="w-full">📡 Tracker Only</Button>
+              </div>
+              <p className="text-sm text-gray-500 mt-2">Race Nav &amp; Tracker open when racing starts.</p>
+            </div>
           )}
+          <p className="text-xs text-gray-400 mt-3 text-center">
+            💡 Tip: add this to your home screen (Share &rarr; Add to Home Screen) to use it offline at sea.
+          </p>
         </Card>
 
         {/* Start sequence */}

@@ -6,7 +6,14 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { getBrowserClient } from '@/lib/supabase/browser'
 import { useAuth } from '@/context/AuthContext'
-import { cacheRaceData, getCachedRaceByToken } from '@/lib/offline-gps'
+import {
+  cacheRaceData,
+  getCachedRaceByToken,
+  savePosition,
+  flushPositions,
+  getUnsyncedCount,
+  registerReconnectFlush,
+} from '@/lib/offline-gps'
 import type { RaceMapProps, RaceMapMark } from '@/components/map/RaceMap'
 
 // Dynamically import to avoid SSR issues with Leaflet
@@ -183,7 +190,6 @@ export default function LiveRacePage() {
   const [gpsStatus, setGpsStatus] = useState<'waiting' | 'active' | 'error'>('waiting')
   const [currentPos, setCurrentPos] = useState<GpsPosition | null>(null)
   const prevPosRef = useRef<GpsPosition | null>(null)
-  const posBufferRef = useRef<GpsPosition[]>([])
 
   // Internal refs for GPS callback (avoid stale closures)
   const courseRef = useRef<CourseData | null>(null)
@@ -192,6 +198,12 @@ export default function LiveRacePage() {
   const finishedRef = useRef(false)
   const entryRef = useRef<EntryData | null>(null)
   const startClassesRef = useRef<StartClass[]>([])
+  const raceRef = useRef<RaceData | null>(null)
+  const userRef = useRef<{ id: string } | null>(null)
+
+  // Offline / sync state
+  const [isOnline, setIsOnline] = useState(true)
+  const [unsyncedCount, setUnsyncedCount] = useState(0)
 
   // Race progress state
   const [nextMarkIndex, setNextMarkIndex] = useState(0)
@@ -240,6 +252,8 @@ export default function LiveRacePage() {
   }, [startClasses])
   useEffect(() => { entryRef.current = entry }, [entry])
   useEffect(() => { startClassesRef.current = startClasses }, [startClasses])
+  useEffect(() => { raceRef.current = race }, [race])
+  useEffect(() => { userRef.current = user ? { id: user.id } : null }, [user])
 
   // ── Load race data ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -472,7 +486,21 @@ export default function LiveRacePage() {
         setGpsStatus('active')
         setCurrentPos(gpsPos)
         setMapCenter([gpsPos.lat, gpsPos.lon])
-        posBufferRef.current.push(gpsPos)
+
+        // Offline-first: queue every fix to IndexedDB (survives signal loss).
+        if (raceRef.current && userRef.current) {
+          void savePosition({
+            raceId: raceRef.current.id,
+            userId: userRef.current.id,
+            entryId: entryRef.current?.id ?? null,
+            lat: gpsPos.lat,
+            lon: gpsPos.lon,
+            speedKts: gpsPos.speed_kts,
+            headingDeg: gpsPos.heading,
+            accuracyM: gpsPos.accuracy_m,
+            recordedAt: gpsPos.recorded_at,
+          }).then(() => getUnsyncedCount().then(setUnsyncedCount))
+        }
 
         handleGpsUpdate(gpsPos)
         prevPosRef.current = gpsPos
@@ -488,35 +516,33 @@ export default function LiveRacePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── GPS batch flush ────────────────────────────────────────────────────────
+  // ── GPS batch flush (offline-first via IndexedDB queue) ──────────────────────
   useEffect(() => {
     if (!race || !user) return
-
-    const interval = setInterval(async () => {
-      if (posBufferRef.current.length === 0 || !navigator.onLine) return
-
-      const toFlush = [...posBufferRef.current]
-      posBufferRef.current = []
-
-      const supabase = getBrowserClient()
-      await supabase.from('live_positions').insert(
-        toFlush.map(p => ({
-          race_id: race.id,
-          entry_id: entry?.id ?? null,
-          user_id: user.id,
-          lat: p.lat,
-          lon: p.lon,
-          speed_kts: p.speed_kts,
-          heading_deg: p.heading,
-          accuracy_m: p.accuracy_m,
-          recorded_at: p.recorded_at,
-        })),
-      )
+    const interval = setInterval(() => {
+      void flushPositions().then(() => getUnsyncedCount().then(setUnsyncedCount))
     }, 30000)
+    const unregister = registerReconnectFlush(() => {
+      void getUnsyncedCount().then(setUnsyncedCount)
+    })
+    return () => {
+      clearInterval(interval)
+      unregister()
+    }
+  }, [race, user])
 
-    return () => clearInterval(interval)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [race, user, entry])
+  // ── Online/offline indicator ────────────────────────────────────────────────
+  useEffect(() => {
+    const sync = () => setIsOnline(navigator.onLine)
+    const t = setTimeout(sync, 0) // defer initial set out of effect body
+    window.addEventListener('online', sync)
+    window.addEventListener('offline', sync)
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('online', sync)
+      window.removeEventListener('offline', sync)
+    }
+  }, [])
 
   // ── GPS update handler (uses refs to avoid stale closures) ────────────────
   const handleGpsUpdate = useCallback((pos: GpsPosition) => {
@@ -832,6 +858,13 @@ export default function LiveRacePage() {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-900">
+
+      {/* Offline banner */}
+      {!isOnline && (
+        <div className="bg-amber-500 text-slate-900 px-3 py-2 text-center text-xs font-semibold shrink-0 z-20">
+          📡 Offline — {unsyncedCount} position{unsyncedCount === 1 ? '' : 's'} queued, will sync when reconnected
+        </div>
+      )}
 
       {/* Battery warning banner */}
       {!batteryDismissed && (
