@@ -27,6 +27,10 @@ export interface RaceMapProps {
   trail?: [number, number][]
   /** When true, project a line ahead from the boat along its heading. */
   showHeadingLine?: boolean
+  /** Other competitors to plot (their latest positions). */
+  fleet?: Array<{ entryId: string; lat: number; lon: number; headingDeg: number | null; boatName: string }>
+  /** Fit the map to show the whole course + fleet (viewer / whole-course mode). */
+  fitAll?: boolean
 }
 
 function midpoint(
@@ -64,6 +68,8 @@ export default function RaceMap({
   currentLap,
   trail = [],
   showHeadingLine = false,
+  fleet = [],
+  fitAll = false,
 }: RaceMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
@@ -72,6 +78,7 @@ export default function RaceMap({
   const rotationRef = useRef<number>(0)
   const trailRef = useRef<L.Polyline | null>(null)
   const headingLineRef = useRef<L.Polyline | null>(null)
+  const fleetMarkersRef = useRef<Map<string, L.Marker>>(new Map())
 
   // Init map once
   useEffect(() => {
@@ -308,9 +315,24 @@ export default function RaceMap({
       headingLineRef.current = null
     }
 
-    // Pan map to follow position
-    map.panTo([currentPosition.lat, currentPosition.lon], { animate: true, duration: 0.5 })
-  }, [currentPosition, showHeadingLine])
+    // Pan map to follow position (unless we're in whole-course/viewer mode).
+    if (!fitAll) {
+      map.panTo([currentPosition.lat, currentPosition.lon], { animate: true, duration: 0.5 })
+    }
+  }, [currentPosition, showHeadingLine, fitAll])
+
+  // Whole-course / viewer mode: fit to marks + fleet.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !fitAll) return
+    const pts: [number, number][] = courseMarks.map((m) => [m.lat, m.lon])
+    if (startLine) pts.push([startLine.lat1, startLine.lng1], [startLine.lat2, startLine.lng2])
+    for (const b of fleet) pts.push([b.lat, b.lon])
+    if (currentPosition) pts.push([currentPosition.lat, currentPosition.lon])
+    if (pts.length > 0) {
+      map.fitBounds(L.latLngBounds(pts).pad(0.2), { maxZoom: 16 })
+    }
+  }, [fitAll, courseMarks, startLine, fleet, currentPosition])
 
   // Track trail: draw the breadcrumb of where the boat has been.
   useEffect(() => {
@@ -334,6 +356,45 @@ export default function RaceMap({
     }
   }, [trail])
 
+  // Fleet: plot other competitors as amber boat dots with a name label.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    const seen = new Set<string>()
+
+    for (const b of fleet) {
+      seen.add(b.entryId)
+      const hdg = b.headingDeg ?? 0
+      const icon = L.divIcon({
+        html: `
+          <div style="position:relative;width:26px;height:26px">
+            <div style="position:absolute;inset:3px;background:#f59e0b;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>
+            <div style="position:absolute;left:50%;top:50%;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:11px solid #f59e0b;transform:translate(-50%,-100%) rotate(${hdg}deg);transform-origin:50% 100%"></div>
+            <div style="position:absolute;top:26px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10px;font-weight:600;color:#111;background:rgba(255,255,255,.85);padding:0 3px;border-radius:3px">${b.boatName}</div>
+          </div>`,
+        className: '',
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+      })
+      const existing = fleetMarkersRef.current.get(b.entryId)
+      if (existing) {
+        existing.setLatLng([b.lat, b.lon])
+        existing.setIcon(icon)
+      } else {
+        const m = L.marker([b.lat, b.lon], { icon, zIndexOffset: 500 }).addTo(map)
+        fleetMarkersRef.current.set(b.entryId, m)
+      }
+    }
+
+    // Remove markers for boats no longer present.
+    for (const [id, m] of fleetMarkersRef.current) {
+      if (!seen.has(id)) {
+        map.removeLayer(m)
+        fleetMarkersRef.current.delete(id)
+      }
+    }
+  }, [fleet])
+
   // Course-up rotation: rotate the map so the boat's DIRECTION OF TRAVEL is up.
   //
   // Previously this rotated toward the next-mark bearing and bailed out on the
@@ -343,7 +404,7 @@ export default function RaceMap({
   // real chartplotters do course-up.
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !courseUp || !currentPosition) return
+    if (!map || !courseUp || !currentPosition || fitAll) return
 
     const heading = currentPosition.heading ?? rotationRef.current
     rotationRef.current = heading
@@ -355,7 +416,7 @@ export default function RaceMap({
       container.style.transition = 'transform 0.4s ease-out'
       container.style.transform = `scale(1.5) rotate(${-heading}deg)`
     }
-  }, [currentPosition, courseUp])
+  }, [currentPosition, courseUp, fitAll])
 
   // Reset rotation when switching to north-up
   useEffect(() => {

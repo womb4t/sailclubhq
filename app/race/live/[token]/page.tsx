@@ -15,6 +15,7 @@ import {
   registerReconnectFlush,
 } from '@/lib/offline-gps'
 import { GpsSimulator, type SimCourse } from '@/lib/gps-simulator'
+import { useFleetPositions } from '@/lib/useFleetPositions'
 import type { RaceMapProps, RaceMapMark } from '@/components/map/RaceMap'
 
 // Dynamically import to avoid SSR issues with Leaflet
@@ -229,6 +230,7 @@ export default function LiveRacePage() {
   const [courseUp, setCourseUp] = useState(true)
   const [showHeadingLine, setShowHeadingLine] = useState(false)
   const [trail, setTrail] = useState<[number, number][]>([])
+  const [wholeCourse, setWholeCourse] = useState(false)
   const [batteryDismissed, setBatteryDismissed] = useState(false)
   const [mapCenter, setMapCenter] = useState<[number, number]>([51.5, -0.1])
 
@@ -262,6 +264,9 @@ export default function LiveRacePage() {
   useEffect(() => { raceRef.current = race }, [race])
   useEffect(() => { userRef.current = user ? { id: user.id } : null }, [user])
   useEffect(() => { isSimRef.current = isSim }, [isSim])
+
+  // Fleet positions — only subscribe while the whole-course view is open.
+  const { boats: fleet } = useFleetPositions(wholeCourse && race ? race.id : null)
 
   // Append a point to the boat's track (breadcrumb). Called from GPS handlers
   // (event callbacks, not effects), skipping near-duplicates and capping length.
@@ -978,21 +983,31 @@ export default function LiveRacePage() {
           finishAtStart={course?.finish_at_start ?? false}
           currentPosition={currentPos ? { lat: currentPos.lat, lon: currentPos.lon, heading: currentPos.heading } : null}
           nextMarkIndex={nextMarkIndex}
-          courseUp={courseUp}
+          courseUp={courseUp && !wholeCourse}
           laps={totalLaps}
           currentLap={currentLap}
           trail={trail}
           showHeadingLine={showHeadingLine}
+          fleet={wholeCourse ? fleet.map(b => ({ entryId: b.entryId, lat: b.lat, lon: b.lon, headingDeg: b.headingDeg, boatName: b.boatName })) : []}
+          fitAll={wholeCourse}
         />
 
         {/* Map toggles */}
         <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-2 items-end">
           <button
-            onClick={() => setCourseUp(v => !v)}
-            className="bg-gray-900/90 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-medium shadow-lg"
+            onClick={() => setWholeCourse(v => !v)}
+            className={`border rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-lg ${wholeCourse ? 'bg-blue-500 border-blue-400 text-white' : 'bg-gray-900/90 border-gray-700 text-white'}`}
           >
-            {courseUp ? '🧭 Course Up' : '⬆️ North Up'}
+            {wholeCourse ? '🏁 Whole Course' : '📍 My View'}
           </button>
+          {!wholeCourse && (
+            <button
+              onClick={() => setCourseUp(v => !v)}
+              className="bg-gray-900/90 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-medium shadow-lg"
+            >
+              {courseUp ? '🧭 Course Up' : '⬆️ North Up'}
+            </button>
+          )}
           <button
             onClick={() => setShowHeadingLine(v => !v)}
             className={`border rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-lg ${showHeadingLine ? 'bg-amber-500 border-amber-400 text-slate-900' : 'bg-gray-900/90 border-gray-700 text-white'}`}
