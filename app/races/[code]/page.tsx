@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
 import type { Metadata } from 'next'
+import { RaceNavLink } from '@/components/races/RaceNavLink'
 
 function getSupabase() {
   return createClient(
@@ -232,12 +233,7 @@ function RaceCard({ race }: { race: Race }) {
           </Link>
         )}
         {race.status === 'live' && (
-          <Link
-            href={`/race/live/${race.entry_token}`}
-            className="flex-shrink-0 inline-flex items-center gap-1 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-3 py-1.5 transition-colors"
-          >
-            📱 Race Nav
-          </Link>
+          <RaceNavLink entryToken={race.entry_token} />
         )}
       </div>
     </div>
