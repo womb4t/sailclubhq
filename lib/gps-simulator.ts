@@ -250,6 +250,8 @@ export class GpsSimulator {
 
   // ── Simulation step ─────────────────────────────────────────────────────────
 
+  private wobblePhase = 0
+
   private tick() {
     if (this.opts.mode === 'auto') this.steerAuto()
 
@@ -264,7 +266,11 @@ export class GpsSimulator {
     this.emit()
   }
 
-  /** Auto-helm: point at the current target waypoint; advance when reached. */
+  /**
+   * Auto-helm: steer toward the current target, but like a real boat — ease the
+   * heading toward the target (no instant snap) and add gentle helm wander so the
+   * track wobbles naturally instead of being a dead-straight line.
+   */
   private steerAuto() {
     if (this.targetIndex >= this.plan.length) {
       this.speedKts = 0 // course complete — drift to a stop
@@ -280,8 +286,22 @@ export class GpsSimulator {
       }
     }
     const [ntLat, ntLon] = this.plan[Math.min(this.targetIndex, this.plan.length - 1)]
-    this.heading = bearingDeg(this.lat, this.lon, ntLat, ntLon)
-    this.speedKts = this.opts.boatSpeedKts
+    const targetBearing = bearingDeg(this.lat, this.lon, ntLat, ntLon)
+
+    // Helm wander: slow sine sway + small random jitter (degrees).
+    this.wobblePhase += 0.35
+    const wander = Math.sin(this.wobblePhase) * 8 + (Math.random() - 0.5) * 6
+    const desired = targetBearing + wander
+
+    // Ease the heading toward the desired bearing (turn rate limited).
+    let diff = ((desired - this.heading + 540) % 360) - 180
+    const maxTurn = 12 // deg per tick
+    if (diff > maxTurn) diff = maxTurn
+    if (diff < -maxTurn) diff = -maxTurn
+    this.heading = ((this.heading + diff) % 360 + 360) % 360
+
+    // Vary speed a touch (gusts / helming).
+    this.speedKts = this.opts.boatSpeedKts * (0.9 + Math.random() * 0.2)
   }
 
   private emit() {
