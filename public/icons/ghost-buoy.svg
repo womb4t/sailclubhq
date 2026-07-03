@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- SailClubHQ "ghost buoy" mark icon: a racing mark drawn as a dotted/dashed
+       outline only, translucent and ethereal — a virtual mark that isn't there. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Rounded background -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- Faint water line -->
+  <line x1="96" y1="360" x2="416" y2="360"
+        stroke="#38bdf8" stroke-width="4" stroke-opacity="0.35"
+        stroke-dasharray="2 14" stroke-linecap="round"/>
+
+  <g filter="url(#glow)" fill="none" stroke="#e2e8f0"
+     stroke-width="9" stroke-linecap="round" stroke-linejoin="round"
+     stroke-opacity="0.9" stroke-dasharray="4 16">
+    <!-- Buoy body: a pillar/conical racing mark -->
+    <path d="M256 130
+             C 300 130 322 168 322 214
+             L 322 300
+             C 322 336 296 360 256 360
+             C 216 360 190 336 190 300
+             L 190 214
+             C 190 168 212 130 256 130 Z"/>
+    <!-- Topmark triangle -->
+    <path d="M256 70 L 296 128 L 216 128 Z"/>
+    <!-- Body band -->
+    <line x1="196" y1="250" x2="316" y2="250"/>
+  </g>
+
+  <!-- Ghostly base ripples -->
+  <g fill="none" stroke="#e2e8f0" stroke-opacity="0.25" stroke-width="5"
+     stroke-linecap="round" stroke-dasharray="3 14">
+    <path d="M150 388 C 190 372 322 372 362 388"/>
+    <path d="M170 416 C 210 402 302 402 342 416"/>
+  </g>
+</svg>
