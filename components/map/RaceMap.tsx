@@ -334,28 +334,28 @@ export default function RaceMap({
     }
   }, [trail])
 
-  // Course-up rotation: rotate the map container
+  // Course-up rotation: rotate the map so the boat's DIRECTION OF TRAVEL is up.
+  //
+  // Previously this rotated toward the next-mark bearing and bailed out on the
+  // final leg (nextMarkIndex >= marks.length), which made leg 2 jump oddly and
+  // the finish leg not rotate at all. Using the boat's own heading (course over
+  // ground) is smooth, works on every leg including the finish, and matches how
+  // real chartplotters do course-up.
   useEffect(() => {
     const map = mapRef.current
     if (!map || !courseUp || !currentPosition) return
-    if (nextMarkIndex >= courseMarks.length) return
 
-    const nextMark = courseMarks[nextMarkIndex]
-    const bearing = bearingDeg(
-      currentPosition.lat, currentPosition.lon,
-      nextMark.lat, nextMark.lon,
-    )
-
-    rotationRef.current = bearing
+    const heading = currentPosition.heading ?? rotationRef.current
+    rotationRef.current = heading
     const container = containerRef.current
     if (container) {
       // Scale up while rotating so the rotated square always fills the viewport
       // (no blank triangular corners), and animate for a smooth feel.
       container.style.transformOrigin = '50% 50%'
       container.style.transition = 'transform 0.4s ease-out'
-      container.style.transform = `scale(1.5) rotate(${-bearing}deg)`
+      container.style.transform = `scale(1.5) rotate(${-heading}deg)`
     }
-  }, [currentPosition, courseUp, nextMarkIndex, courseMarks])
+  }, [currentPosition, courseUp])
 
   // Reset rotation when switching to north-up
   useEffect(() => {
