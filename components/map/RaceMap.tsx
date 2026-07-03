@@ -23,6 +23,10 @@ export interface RaceMapProps {
   courseUp: boolean
   laps: number
   currentLap: number
+  /** Breadcrumb of where the boat has been, drawn as a trailing line. */
+  trail?: [number, number][]
+  /** When true, project a line ahead from the boat along its heading. */
+  showHeadingLine?: boolean
 }
 
 function midpoint(
@@ -30,6 +34,21 @@ function midpoint(
   lat2: number, lng2: number
 ): [number, number] {
   return [(lat1 + lat2) / 2, (lng1 + lng2) / 2]
+}
+
+/** Project a point `distNm` nautical miles from (lat,lon) along `headingDeg`. */
+function projectPoint(lat: number, lon: number, headingDeg: number, distNm: number): [number, number] {
+  const R = 3440.065
+  const d = distNm / R
+  const brng = (headingDeg * Math.PI) / 180
+  const lat1 = (lat * Math.PI) / 180
+  const lon1 = (lon * Math.PI) / 180
+  const lat2 = Math.asin(Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(brng))
+  const lon2 = lon1 + Math.atan2(
+    Math.sin(brng) * Math.sin(d) * Math.cos(lat1),
+    Math.cos(d) - Math.sin(lat1) * Math.sin(lat2),
+  )
+  return [(lat2 * 180) / Math.PI, (lon2 * 180) / Math.PI]
 }
 
 export default function RaceMap({
@@ -43,12 +62,16 @@ export default function RaceMap({
   courseUp,
   laps,
   currentLap,
+  trail = [],
+  showHeadingLine = false,
 }: RaceMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
   const posMarkerRef = useRef<L.Marker | null>(null)
   const courseLayersRef = useRef<L.Layer[]>([])
   const rotationRef = useRef<number>(0)
+  const trailRef = useRef<L.Polyline | null>(null)
+  const headingLineRef = useRef<L.Polyline | null>(null)
 
   // Init map once
   useEffect(() => {
@@ -266,9 +289,50 @@ export default function RaceMap({
       }).addTo(map)
     }
 
+    // Heading line: project ~0.3nm ahead from the boat along its heading.
+    if (showHeadingLine) {
+      const ahead = projectPoint(currentPosition.lat, currentPosition.lon, heading, 0.3)
+      const pts: [number, number][] = [[currentPosition.lat, currentPosition.lon], ahead]
+      if (headingLineRef.current) {
+        headingLineRef.current.setLatLngs(pts)
+      } else {
+        headingLineRef.current = L.polyline(pts, {
+          color: '#f59e0b',
+          weight: 2,
+          dashArray: '6 6',
+          opacity: 0.9,
+        }).addTo(map)
+      }
+    } else if (headingLineRef.current) {
+      map.removeLayer(headingLineRef.current)
+      headingLineRef.current = null
+    }
+
     // Pan map to follow position
     map.panTo([currentPosition.lat, currentPosition.lon], { animate: true, duration: 0.5 })
-  }, [currentPosition])
+  }, [currentPosition, showHeadingLine])
+
+  // Track trail: draw the breadcrumb of where the boat has been.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map) return
+    if (trail.length < 2) {
+      if (trailRef.current) {
+        map.removeLayer(trailRef.current)
+        trailRef.current = null
+      }
+      return
+    }
+    if (trailRef.current) {
+      trailRef.current.setLatLngs(trail)
+    } else {
+      trailRef.current = L.polyline(trail, {
+        color: '#2563eb',
+        weight: 3,
+        opacity: 0.6,
+      }).addTo(map)
+    }
+  }, [trail])
 
   // Course-up rotation: rotate the map container
   useEffect(() => {
