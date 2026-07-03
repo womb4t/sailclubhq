@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { getBrowserClient } from '@/lib/supabase/browser'
 import { useAuth } from '@/context/AuthContext'
+import { cacheRaceData, getCachedRaceByToken } from '@/lib/offline-gps'
 import type { RaceMapProps, RaceMapMark } from '@/components/map/RaceMap'
 
 // Dynamically import to avoid SSR issues with Leaflet
@@ -257,12 +258,19 @@ export default function LiveRacePage() {
       .single()
 
     if (raceErr || !raceData) {
-      setError('Race not found. Check your link.')
-      setLoading(false)
+      // Likely offline (or genuinely missing) — try the cached snapshot so a
+      // sailor who loaded the race while ashore still sees marks at sea.
+      const restored = await loadFromCache()
+      if (!restored) {
+        setError('Race not found. Check your link.')
+        setLoading(false)
+      }
       return
     }
 
     setRace(raceData as RaceData)
+    let loadedCourse: CourseData | null = null
+    let loadedEntry: EntryData | null = null
 
     // Fetch start classes
     const { data: classes } = await supabase
@@ -333,6 +341,7 @@ export default function LiveRacePage() {
           marks,
         }
         setCourse(courseData)
+        loadedCourse = courseData
       }
     }
 
@@ -346,10 +355,56 @@ export default function LiveRacePage() {
         .limit(1)
         .maybeSingle()
 
-      if (entryData) setEntry(entryData as EntryData)
+      if (entryData) {
+        setEntry(entryData as EntryData)
+        loadedEntry = entryData as EntryData
+      }
+    }
+
+    // Cache the full race snapshot for offline use (marks, lines, classes).
+    // We re-read the freshly-set state via the local vars gathered above.
+    try {
+      await cacheRaceData(raceData.id, token as string, {
+        race: raceData,
+        classes: classes ?? null,
+        course: loadedCourse,
+        entry: loadedEntry,
+      })
+    } catch {
+      /* caching is best-effort; never block the page on it */
     }
 
     setLoading(false)
+  }
+
+  /**
+   * Offline fallback: rebuild race/course/classes state from the IndexedDB
+   * snapshot so virtual marks and the course still render with no signal.
+   */
+  async function loadFromCache(): Promise<boolean> {
+    try {
+      const cached = await getCachedRaceByToken<{
+        race: RaceData
+        classes: StartClass[] | null
+        course: CourseData | null
+        entry: EntryData | null
+      }>(token as string)
+      if (!cached) return false
+      const d = cached.data
+      setRace(d.race)
+      if (d.classes) setStartClasses(d.classes)
+      if (d.course) {
+        setCourse(d.course)
+        if (d.course.marks.length > 0) {
+          setMapCenter([d.course.marks[0].lat, d.course.marks[0].lon])
+        }
+      }
+      if (d.entry) setEntry(d.entry)
+      setLoading(false)
+      return true
+    } catch {
+      return false
+    }
   }
 
   // ── Realtime subscription: watch start_classes for general_recall changes ───────────

@@ -201,6 +201,60 @@ export async function flushPositions(): Promise<FlushResult> {
   return { synced, failed }
 }
 
+// ── Race + course cache (offline marks) ────────────────────────────────────────
+//
+// So that virtual marks, start/finish lines and the briefing remain visible with
+// no signal, we snapshot the full race payload (race, course, marks, start
+// classes) into IndexedDB while online. Callers pass whatever shape they already
+// load; we store it opaquely and hand it back on read.
+
+export interface CachedRace<T = unknown> {
+  raceId: string
+  token: string // entry_token used to look the race up
+  data: T // full race+course+marks+start_classes snapshot
+  cachedAt: string // ISO timestamp
+}
+
+/** Snapshot a race payload for offline use (keyed by raceId). */
+export async function cacheRaceData<T>(
+  raceId: string,
+  token: string,
+  data: T,
+): Promise<void> {
+  if (!isBrowser()) return
+  const db = await openDb()
+  const store = tx(db, RACE_CACHE_STORE, 'readwrite')
+  const record: CachedRace<T> = {
+    raceId,
+    token,
+    data,
+    cachedAt: new Date().toISOString(),
+  }
+  await promisify(store.put(record))
+}
+
+/** Retrieve a cached race snapshot by raceId, or null if none stored. */
+export async function getCachedRaceData<T>(
+  raceId: string,
+): Promise<CachedRace<T> | null> {
+  if (!isBrowser()) return null
+  const db = await openDb()
+  const store = tx(db, RACE_CACHE_STORE, 'readonly')
+  const rec = (await promisify(store.get(raceId))) as CachedRace<T> | undefined
+  return rec ?? null
+}
+
+/** Retrieve a cached race snapshot by entry_token (scans the small cache). */
+export async function getCachedRaceByToken<T>(
+  token: string,
+): Promise<CachedRace<T> | null> {
+  if (!isBrowser()) return null
+  const db = await openDb()
+  const store = tx(db, RACE_CACHE_STORE, 'readonly')
+  const all = (await promisify(store.getAll())) as CachedRace<T>[]
+  return all.find((r) => r.token === token) ?? null
+}
+
 // ── Reconnect handling ─────────────────────────────────────────────────────────
 
 let onlineHandler: (() => void) | null = null
