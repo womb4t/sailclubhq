@@ -12,6 +12,7 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { getBrowserClient } from '@/lib/supabase/browser'
 import { useFleetPositions } from '@/lib/useFleetPositions'
+import { computeStandings, formatElapsed } from '@/lib/race-standings'
 import type { RaceMapProps, RaceMapMark } from '@/components/map/RaceMap'
 
 const RaceMap = dynamic<RaceMapProps>(() => import('@/components/map/RaceMap'), { ssr: false })
@@ -38,6 +39,23 @@ export default function RaceViewerPage() {
   const [error, setError] = useState('')
 
   const { boats } = useFleetPositions(race?.id ?? null)
+
+  const standings = computeStandings(
+    boats.map((b) => ({
+      entryId: b.entryId,
+      boatName: b.boatName,
+      helmName: b.helmName,
+      status: b.status,
+      lapsCompleted: b.lapsCompleted,
+      lastMarkIndex: b.lastMarkIndex,
+      finishTime: b.finishTime,
+      elapsedSeconds: b.elapsedSeconds,
+      lat: b.lat,
+      lon: b.lon,
+      speedKts: b.speedKts,
+    })),
+    marks.map((m) => ({ lat: m.lat, lon: m.lon, index: m.index })),
+  )
 
   useEffect(() => {
     if (!token) return
@@ -133,20 +151,33 @@ export default function RaceViewerPage() {
 
       {/* Positions list */}
       <div className="flex-1 overflow-y-auto">
-        {boats.length === 0 ? (
+        {standings.length === 0 ? (
           <p className="text-center text-sm opacity-60 py-8">No boats tracking yet. They’ll appear here once they start.</p>
         ) : (
           <ul className="divide-y divide-slate-800">
-            {boats.map((b, i) => (
-              <li key={b.entryId} className="flex items-center gap-3 px-4 py-2.5">
-                <span className="w-6 text-center text-sm font-bold opacity-60">{i + 1}</span>
+            {standings.map((s) => (
+              <li key={s.entryId} className="flex items-center gap-3 px-4 py-2.5">
+                <span className="w-6 text-center text-sm font-bold opacity-60">{s.rank}</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{b.boatName}</p>
-                  {b.helmName && <p className="text-xs opacity-60 truncate">{b.helmName}</p>}
+                  <p className="text-sm font-medium truncate">
+                    {s.boatName}
+                    {s.state === 'finished' && <span className="ml-1.5 text-[10px] text-green-400">🏁 FIN</span>}
+                  </p>
+                  {s.helmName && <p className="text-xs opacity-60 truncate">{s.helmName}</p>}
                 </div>
                 <div className="text-right">
-                  <p className="text-sm tabular-nums">{b.speedKts != null ? `${b.speedKts.toFixed(1)} kn` : '—'}</p>
-                  <p className="text-[10px] opacity-50 tabular-nums">{b.headingDeg != null ? `${Math.round(b.headingDeg)}°` : ''}</p>
+                  {s.state === 'finished' ? (
+                    <p className="text-sm tabular-nums text-green-400">{formatElapsed(s.elapsedSeconds)}</p>
+                  ) : s.state === 'racing' ? (
+                    <>
+                      <p className="text-sm tabular-nums">{s.speedKts != null ? `${s.speedKts.toFixed(1)} kn` : '—'}</p>
+                      <p className="text-[10px] opacity-50 tabular-nums">
+                        {s.distanceToNextNm != null ? `${s.distanceToNextNm.toFixed(2)} nm to mark` : ''}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-xs opacity-50">waiting</p>
+                  )}
                 </div>
               </li>
             ))}
