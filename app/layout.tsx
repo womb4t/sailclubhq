@@ -7,13 +7,13 @@ import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister'
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 
 export const metadata: Metadata = {
-  title: 'Sail Club HQ',
-  description: 'Race management for sailing clubs',
+  title: 'Waypoint Racing',
+  description: 'Live GPS race tracking, nav and results for sailing and beyond',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'SailClubHQ',
+    title: 'Waypoint Racing',
   },
   icons: {
     icon: '/icons/icon-192.png',

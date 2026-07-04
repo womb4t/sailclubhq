@@ -412,7 +412,7 @@ export default function RaceCentrePage() {
 
     const gpx = [
       '<?xml version="1.0" encoding="UTF-8"?>',
-      '<gpx version="1.1" creator="SailClubHQ" xmlns="http://www.topografix.com/GPX/1/1">',
+      '<gpx version="1.1" creator="Waypoint Racing" xmlns="http://www.topografix.com/GPX/1/1">',
       `  <metadata>\n    <name>${escapeXml(race.name)}</name>\n  </metadata>`,
       ...wpts,
       '  <rte>',

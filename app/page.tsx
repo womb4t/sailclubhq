@@ -45,10 +45,10 @@ export default function RootPage() {
             <span className="text-5xl drop-shadow-lg">⛵</span>
           </div>
           <h1 className="text-5xl font-bold text-white tracking-tight drop-shadow-lg">
-            Sail Club HQ
+            Waypoint Racing
           </h1>
           <p className="text-blue-100 mt-3 text-xl font-light drop-shadow">
-            Race management for sailing clubs
+            Live GPS race tracking, nav &amp; results
           </p>
         </div>
 

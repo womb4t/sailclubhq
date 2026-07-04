@@ -1,7 +1,7 @@
 {
-  "name": "Sail Club HQ",
-  "short_name": "SailClubHQ",
-  "description": "Race management, live tracking and offline race nav for sailing clubs.",
+  "name": "Waypoint Racing",
+  "short_name": "Waypoint",
+  "description": "Live GPS race tracking, offline nav and results — for sailing and beyond.",
   "id": "/",
   "start_url": "/dashboard",
   "scope": "/",
