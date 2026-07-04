@@ -269,7 +269,7 @@ function RegisterForm() {
       <div className="text-center mb-8">
         <Link href="/" className="inline-block text-2xl mb-3">⛵</Link>
         <h1 className="text-2xl font-bold text-gray-900">Create account</h1>
-        <p className="text-sm text-gray-500 mt-1">Join Sail Club HQ</p>
+        <p className="text-sm text-gray-500 mt-1">Join Waypoint Racing</p>
       </div>
       <form onSubmit={handleCreateAccount} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 space-y-4">
         <Input label="Full name" type="text" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Jane Smith" autoComplete="name" required />

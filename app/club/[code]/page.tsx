@@ -263,7 +263,7 @@ export default function ClubHomePage() {
               {club.name}
             </h1>
             {/* Subtle branding */}
-            <p className="text-sm text-gray-400">⛵ Sail Club HQ</p>
+            <p className="text-sm text-gray-400">⛵ Waypoint Racing</p>
 
             {/* CTA buttons */}
             <div className="flex gap-3 mt-2 flex-wrap justify-center">
