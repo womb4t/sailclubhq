@@ -768,6 +768,20 @@ export default function LiveRacePage() {
       const mins = Math.floor(totalSecs / 60)
       const secs = totalSecs % 60
 
+      // Under 10s: show a crisp tenths countdown for the gun (e.g. 5.3).
+      if (diff <= 10000) {
+        setCountdown((diff / 1000).toFixed(1))
+        setCountdownPhase('start')
+        // 5-4-3-2-1 beeps
+        const whole = Math.ceil(diff / 1000)
+        const key = `cd${whole}`
+        if (whole <= 5 && whole >= 1 && !audioFiredRef.current.has(key)) {
+          audioFiredRef.current.add(key)
+          playBeeps(1)
+        }
+        return
+      }
+
       if (totalSecs === 60 && !audioFiredRef.current.has('1min')) {
         audioFiredRef.current.add('1min')
         playBeeps(1)
@@ -787,7 +801,7 @@ export default function LiveRacePage() {
 
       setCountdown(`${mins}:${String(secs).padStart(2, '0')}`)
 
-    }, 500)
+    }, 100) // 100ms tick for a smooth, responsive sequence
 
     return () => clearInterval(interval)
   }, [startClasses])
@@ -1088,14 +1102,17 @@ export default function LiveRacePage() {
 
       {/* Bottom panel: countdown or instruments */}
       {showCountdown ? (
-        <div className={`h-44 ${countdownBg[countdownPhase]} border-t border-gray-800 shrink-0 flex flex-col items-center justify-center px-4 py-3 transition-colors duration-500`}>
-          <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">
+        <div className={`${countdownPhase === 'start' ? 'h-56' : 'h-44'} ${countdownBg[countdownPhase]} border-t border-gray-800 shrink-0 flex flex-col items-center justify-center px-4 py-3 transition-all duration-500`}>
+          <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">
             {countdownPhase === 'pre-warning' && 'Race starts in'}
             {countdownPhase === 'warning' && '⚑ Warning Signal'}
             {countdownPhase === 'prep' && '⚑ Prep Signal'}
             {countdownPhase === 'start' && '🏁 Start imminent'}
           </p>
-          <div className={`text-7xl font-mono font-bold tabular-nums tracking-tight ${countdownColor[countdownPhase]}`} style={{ lineHeight: 1 }}>
+          <div
+            className={`font-mono font-bold tabular-nums tracking-tight ${countdownColor[countdownPhase]} ${countdownPhase === 'start' ? 'text-8xl animate-pulse' : 'text-7xl'}`}
+            style={{ lineHeight: 1 }}
+          >
             {countdown}
           </div>
           {startClasses.length > 0 && (
