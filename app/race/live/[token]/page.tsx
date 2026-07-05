@@ -74,6 +74,17 @@ function formatNm(nm: number): string {
   return `${nm.toFixed(2)}nm`
 }
 
+/** Format elapsed seconds as H:MM:SS or MM:SS. */
+function formatElapsedTime(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  const mm = String(m).padStart(2, '0')
+  const ss = String(sec).padStart(2, '0')
+  return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`
+}
+
 // ── Audio helpers ─────────────────────────────────────────────────────────────
 
 type AudioContextType = typeof AudioContext
@@ -216,6 +227,7 @@ export default function LiveRacePage() {
   const [currentLap, setCurrentLap] = useState(1)
   const [finished, setFinished] = useState(false)
   const [finishTime, setFinishTime] = useState<string | null>(null)
+  const [elapsedSeconds, setElapsedSeconds] = useState<number | null>(null)
 
   // OCS (On Course Side) detection
   const [ocs, setOcs] = useState(false)
@@ -696,19 +708,19 @@ export default function LiveRacePage() {
 
         if (crossed) {
           const ft = new Date().toISOString()
+          const startedAt = startClassesRef.current[0]?.start_time ?? null
+          const elapsed = startedAt ? (Date.now() - new Date(startedAt).getTime()) / 1000 : null
           setFinished(true)
           setFinishTime(ft)
+          setElapsedSeconds(elapsed)
           playLongTone(1500)
           if (typeof navigator.vibrate === 'function') navigator.vibrate([200, 100, 200, 100, 500])
 
           if (entryRef.current && !isSimRef.current) {
             const supabase = getBrowserClient()
-            const startedAt = startClassesRef.current[0]?.start_time ?? null
             supabase.from('race_entries').update({
               finish_time: ft,
-              elapsed_seconds: startedAt
-                ? (Date.now() - new Date(startedAt).getTime()) / 1000
-                : null,
+              elapsed_seconds: elapsed,
               laps_completed: totalLaps,
             }).eq('id', entryRef.current.id)
           }
@@ -1080,21 +1092,36 @@ export default function LiveRacePage() {
 
         {/* Finished overlay */}
         {finished && (
-          <div className="absolute inset-0 z-[2000] flex items-center justify-center bg-black/75">
-            <div className="text-center space-y-4 px-8 py-10 bg-gray-900/95 rounded-2xl border border-green-700 shadow-2xl">
-              <div className="text-7xl">🏁</div>
-              <h2 className="text-4xl font-bold text-white">FINISHED!</h2>
+          <div className="absolute inset-0 z-[2000] flex items-center justify-center bg-black/80 px-6">
+            <div className="text-center space-y-3 px-8 py-10 bg-gray-900/95 rounded-2xl border border-green-600 shadow-2xl w-full max-w-sm">
+              <div className="text-7xl animate-bounce">🏁</div>
+              <h2 className="text-5xl font-black text-green-400 tracking-tight">FINISHED!</h2>
+              {elapsedSeconds != null && (
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-widest">Elapsed</p>
+                  <p className="text-4xl font-mono font-bold text-white tabular-nums">{formatElapsedTime(elapsedSeconds)}</p>
+                </div>
+              )}
               {finishTime && (
                 <p className="text-gray-400 text-sm">
                   Crossed at {new Date(finishTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 </p>
               )}
-              <Link
-                href="/dashboard/races"
-                className="block mt-4 px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm"
-              >
-                Back to races
-              </Link>
+              <p className="text-xs text-green-500">✓ Result submitted</p>
+              <div className="flex flex-col gap-2 mt-4">
+                <Link
+                  href={`/race/viewer/${token}`}
+                  className="block px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm"
+                >
+                  🏆 View results
+                </Link>
+                <Link
+                  href="/dashboard/races"
+                  className="block px-6 py-2 text-gray-400 hover:text-white text-sm"
+                >
+                  Back to races
+                </Link>
+              </div>
             </div>
           </div>
         )}
