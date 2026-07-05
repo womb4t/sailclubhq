@@ -37,6 +37,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
     if (profile?.club_id) {
       setHasClub(true)
+      // Self-heal: if this club has been left with no admin (e.g. all members
+      // cleared), the server-side function promotes the caller. No-op otherwise.
+      void supabase.rpc('claim_admin_if_orphaned')
     } else {
       setHasClub(false)
       if (!pathname.startsWith('/dashboard/onboarding')) {
