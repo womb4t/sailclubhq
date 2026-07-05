@@ -535,12 +535,18 @@ export default function RaceCentrePage() {
               <p className="text-sm text-gray-500 mt-2">Race Nav &amp; Tracker open when racing starts.</p>
             </div>
           )}
-          <div className="mt-3">
+          <div className="mt-3 grid sm:grid-cols-2 gap-2">
             <Link
               href={`/race/viewer/${race.entry_token}`}
               className="flex items-center justify-center gap-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2.5 text-sm transition-colors"
             >
-              👁️ Live Race Viewer — see the whole fleet on the course
+              👁️ Live Viewer
+            </Link>
+            <Link
+              href={`/race/results/${race.entry_token}`}
+              className="flex items-center justify-center gap-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2.5 text-sm transition-colors"
+            >
+              🏆 Results
             </Link>
           </div>
 
