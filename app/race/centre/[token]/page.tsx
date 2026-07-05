@@ -156,6 +156,7 @@ export default function RaceCentrePage() {
   const [myName, setMyName] = useState<string>('')
   // Fleet (entries) + organiser remove.
   const [entries, setEntries] = useState<Array<{ id: string; boat_name: string | null; helm_name: string | null; status: string }>>([])
+  const [crewAvailable, setCrewAvailable] = useState<Array<{ id: string; helm_name: string | null; phone: string | null }>>([])
   const [myEntry, setMyEntry] = useState<{ id: string; boat_name: string | null; status: string } | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
   // Roles + OOD
@@ -279,10 +280,18 @@ export default function RaceCentrePage() {
       // Fleet: everyone entered in this race.
       const { data: ents } = await supabase
         .from('race_entries')
-        .select('id, boat_name, helm_name, status')
+        .select('id, boat_name, helm_name, phone, status, role, boat_id')
         .eq('race_id', raceData.id)
+        .neq('status', 'withdrawn')
         .order('created_at', { ascending: true })
-      if (ents) setEntries(ents as typeof entries)
+      if (ents) {
+        const rows = ents as Array<{ id: string; boat_name: string | null; helm_name: string | null; phone: string | null; status: string; role: string | null; boat_id: string | null }>
+        // Crew available = entered as crew with no boat.
+        const crew = rows.filter((r) => r.role === 'crew' && !r.boat_id)
+        const boats = rows.filter((r) => !(r.role === 'crew' && !r.boat_id))
+        setEntries(boats.map((r) => ({ id: r.id, boat_name: r.boat_name, helm_name: r.helm_name, status: r.status })))
+        setCrewAvailable(crew.map((r) => ({ id: r.id, helm_name: (r.helm_name ?? '').replace(/\s*\(available as crew\)\s*/i, '').trim() || 'A sailor', phone: r.phone })))
+      }
 
       // Am I entered? (drives the advance-entry card)
       if (user) {
@@ -821,6 +830,30 @@ export default function RaceCentrePage() {
             </div>
           )}
         </Card>
+
+        {/* Crew available — people who volunteered to crew (no boat) */}
+        {crewAvailable.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>🙋 Crew available ({crewAvailable.length})</CardTitle>
+            </CardHeader>
+            <p className="text-sm text-gray-500 mb-3">These sailors are looking for a boat — helms, grab a hand.</p>
+            <ul className="divide-y divide-gray-100">
+              {crewAvailable.map((cr) => (
+                <li key={cr.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <span className="text-sm font-medium text-gray-900">{cr.helm_name}</span>
+                  {cr.phone ? (
+                    <a href={`tel:${cr.phone}`} className="shrink-0 text-xs rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 font-medium">
+                      📞 {cr.phone}
+                    </a>
+                  ) : (
+                    <span className="shrink-0 text-xs text-gray-400">No contact given</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
 
         {/* Fleet + organiser remove */}
         <Card>
