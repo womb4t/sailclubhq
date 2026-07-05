@@ -97,6 +97,8 @@ interface RaceData {
   entry_token: string
   course_template_id: string | null
   start_time: string | null
+  ood_id: string | null
+  ood_open_for_volunteer: boolean | null
 }
 
 interface StartClass {
@@ -151,6 +153,10 @@ export default function RaceCentrePage() {
   // Fleet (entries) + organiser remove.
   const [entries, setEntries] = useState<Array<{ id: string; boat_name: string | null; helm_name: string | null; status: string }>>([])
   const [removingId, setRemovingId] = useState<string | null>(null)
+  // Roles + OOD
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [oodName, setOodName] = useState<string | null>(null)
+  const [oodBusy, setOodBusy] = useState(false)
 
   // Auth gate: redirect to login if not signed in
   useEffect(() => {
@@ -169,7 +175,7 @@ export default function RaceCentrePage() {
 
       const { data: raceData, error: raceErr } = await supabase
         .from('races')
-        .select('id, name, race_number, series, race_date, notes, safety_info, vhf_channel, status, entry_token, course_template_id, start_time')
+        .select('id, name, race_number, series, race_date, notes, safety_info, vhf_channel, status, entry_token, course_template_id, start_time, ood_id, ood_open_for_volunteer')
         .eq('entry_token', token)
         .single()
 
@@ -245,10 +251,11 @@ export default function RaceCentrePage() {
       if (user) {
         const { data: prof } = await supabase
           .from('profiles')
-          .select('full_name')
+          .select('full_name, role')
           .eq('id', user.id)
           .maybeSingle()
         if (prof?.full_name) setMyName(prof.full_name)
+        if ((prof as { role?: string } | null)?.role === 'admin') setIsAdmin(true)
         const { data: boat } = await supabase
           .from('boats')
           .select('boat_name, sail_number')
@@ -267,6 +274,16 @@ export default function RaceCentrePage() {
         .order('created_at', { ascending: true })
       if (ents) setEntries(ents as typeof entries)
 
+      // OOD name (if assigned).
+      if ((raceData as RaceData).ood_id) {
+        const { data: oodProf } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', (raceData as RaceData).ood_id)
+          .maybeSingle()
+        setOodName(oodProf?.full_name ?? 'Assigned')
+      }
+
       setLoading(false)
     }
 
@@ -281,6 +298,25 @@ export default function RaceCentrePage() {
     if (!delErr) setEntries((prev) => prev.filter((e) => e.id !== id))
     setRemovingId(null)
   }
+
+  // ── OOD (per-race) ────────────────────────────────────────────────────────
+  async function setOod(oodId: string | null, openForVolunteer: boolean) {
+    if (!race || !user) return
+    setOodBusy(true)
+    const supabase = getBrowserClient()
+    const { error: e } = await supabase
+      .from('races')
+      .update({ ood_id: oodId, ood_open_for_volunteer: openForVolunteer })
+      .eq('id', race.id)
+    if (!e) {
+      setRace({ ...race, ood_id: oodId, ood_open_for_volunteer: openForVolunteer })
+      if (oodId === user.id) setOodName(myName || 'You')
+      else if (oodId === null) setOodName(null)
+    }
+    setOodBusy(false)
+  }
+
+  const iAmOod = !!race && race.ood_id === user?.id
 
   // ── Derived ─────────────────────────────────────────────────────────────────
 
@@ -530,6 +566,53 @@ export default function RaceCentrePage() {
               </Link>
             </div>
           </div>
+        </Card>
+
+        {/* OOD / Race Official */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Officer of the Day</CardTitle>
+          </CardHeader>
+          {race?.ood_id ? (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-gray-900">🏳️ {oodName}{iAmOod && ' (you)'}</p>
+              {(isAdmin || iAmOod) && (
+                <button
+                  onClick={() => setOod(null, false)}
+                  disabled={oodBusy}
+                  className="text-xs rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 font-medium disabled:opacity-50"
+                >
+                  Stand down
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-gray-500">
+                {race?.ood_open_for_volunteer
+                  ? 'No OOD yet — open for a volunteer.'
+                  : 'No Officer of the Day assigned.'}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setOod(user!.id, false)}
+                  disabled={oodBusy}
+                  className="text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 font-medium disabled:opacity-50"
+                >
+                  🙋 Volunteer as OOD
+                </button>
+                {isAdmin && !race?.ood_open_for_volunteer && (
+                  <button
+                    onClick={() => setOod(null, true)}
+                    disabled={oodBusy}
+                    className="text-sm rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 font-medium disabled:opacity-50"
+                  >
+                    Open for volunteer
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Fleet + organiser remove */}
