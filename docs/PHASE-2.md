@@ -52,6 +52,8 @@ Impact: touches almost every query + all role logic. Do it as its own project.
 Uses:
 - **Race planning** — forecast wind, gusts, and tide times/heights for a race’s
   date + venue (on Race Centre, race setup, public calendar).
+- **High/low water** — next HW/LW times + heights for the venue, and current tidal
+  state (rising/falling, height now) shown for the race day.
 - **On-the-water nav** — bottom-sheet conditions panel (à la Savvy Navvy): TWD,
   point-of-sail, cross-tide, tidal set.
 - **True CTS** — enables a real **CTS (Course To Steer)** with tide/leeway
@@ -64,7 +66,19 @@ Consider cost + rate limits before wiring.
 
 ---
 
-## 5. Standardised courses + inter-club competition 🟡
+## 5. Course depths / shallow-water awareness 🟡
+**Depth data on marks and courses — safety + tactics.**
+
+- Optional **depth (charted/at-datum)** per mark, and/or a course depth profile.
+- Combined with tide height (#4) → **actual depth now** at a mark (“1.2 m of water
+  over datum right now”), so shallow-draft boats know where they can/can’t go.
+- Shallow-water / grounding warnings near marks below a boat’s draft.
+- Sources: charted depths (survey/manual entry per mark), or user-recorded depth
+  soundings; combine with live tide height for real-time under-keel figures.
+
+---
+
+## 6. Standardised courses + inter-club competition 🟡
 **Shared, standardised courses so clubs can compete against each other.**
 
 Today: courses are club-owned (marks + legs scoped to one club).
@@ -91,7 +105,7 @@ true handicap-normalised ranking.
 
 ---
 
-## 6. Replayable intro / help centre ⚪
+## 7. Replayable intro / help centre ⚪
 - The intro tutorial is replayable from Profile ("How it works"). Consider a
   fuller in-app help/FAQ surface for participants and officers.
 
