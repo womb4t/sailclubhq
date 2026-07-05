@@ -874,6 +874,24 @@ export default function LiveRacePage() {
     ? bearingDeg(currentPos.lat, currentPos.lon, nextMark.lat, nextMark.lon)
     : null
 
+  // Course To Mark (CTM) = bearing to next mark. We deliberately do NOT call this
+  // CTS (Course To Steer) because we have no tide/wind data to correct for.
+  const ctmDeg = bearingToMark
+
+  // Time to mark at current SOG (rough ETA; straight-line, no tide/leeway).
+  const secsToMark =
+    distToMark != null && currentPos && currentPos.speed_kts > 0.3
+      ? (distToMark / currentPos.speed_kts) * 3600
+      : null
+  const timeToMarkLabel =
+    secsToMark == null
+      ? '—'
+      : secsToMark < 60
+        ? `${Math.round(secsToMark)}s`
+        : secsToMark < 3600
+          ? `${Math.round(secsToMark / 60)} min`
+          : `${(secsToMark / 3600).toFixed(1)} h`
+
   function getEffectiveFinishMidpoint(): [number, number] | null {
     if (!course) return null
     if (course.finish_at_start) {
@@ -1021,6 +1039,56 @@ export default function LiveRacePage() {
         </Link>
       </div>
 
+      {/* CTM instruction header (Savvy-Navvy style). CTM = Course To Mark (bearing);
+          NOT CTS — we have no tide/wind data to correct for. */}
+      {isRacing && !finished && (
+        <div className="bg-rose-500 text-white shrink-0 px-4 py-2.5 flex items-center gap-3 shadow-md z-10">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-lg shrink-0">
+            ⤴️
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 flex-1 min-w-0">
+            <div className="leading-tight">
+              <span className="text-[11px] uppercase tracking-wide opacity-80">CTM </span>
+              <span className="text-lg font-bold tabular-nums">
+                {ctmDeg != null ? `${Math.round(ctmDeg)}°` : '—'}
+              </span>
+              {ctmDeg != null && (
+                <span className="text-[11px] opacity-80 ml-1">{compassPoint(ctmDeg)}</span>
+              )}
+            </div>
+            <div className="leading-tight text-right">
+              <span className="text-[11px] uppercase tracking-wide opacity-80">Speed </span>
+              <span className="text-lg font-bold tabular-nums">
+                {currentPos ? currentPos.speed_kts.toFixed(1) : '—'}
+              </span>
+              <span className="text-[11px] opacity-80 ml-0.5">kts</span>
+            </div>
+            <div className="leading-tight">
+              <span className="text-[11px] uppercase tracking-wide opacity-80">For </span>
+              <span className="text-base font-semibold tabular-nums">{timeToMarkLabel}</span>
+            </div>
+            <div className="leading-tight text-right">
+              <span className="text-[11px] uppercase tracking-wide opacity-80">To mark </span>
+              <span className="text-base font-semibold tabular-nums">
+                {distToMark != null ? formatNm(distToMark) : '—'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Secondary strip: next-mark hint (“Then head for …”) */}
+      {isRacing && !finished && nextMark && (
+        <div className="bg-rose-600 text-white shrink-0 px-4 py-1.5 text-sm font-medium z-10">
+          {nextMarkIndex >= marks.length
+            ? '→ Head for the finish line'
+            : <>→ Head for <span className="font-bold">{nextMark.name || `Mark ${nextMarkIndex + 1}`}</span>
+                <span className={`ml-2 text-xs ${nextMark.roundingSide === 'port' ? 'text-red-200' : 'text-green-200'}`}>
+                  {nextMark.roundingSide === 'port' ? '● leave to port' : '● leave to starboard'}
+                </span></>}
+        </div>
+      )}
+
       {/* Map */}
       <div className="flex-1 relative overflow-hidden">
         <RaceMap
@@ -1064,16 +1132,7 @@ export default function LiveRacePage() {
           </button>
         </div>
 
-        {/* Next mark banner */}
-        {isRacing && !finished && nextMark && (
-          <div className="absolute top-3 left-3 z-[1000] bg-gray-900/90 border border-gray-700 rounded-lg px-2.5 py-1.5 shadow-lg">
-            <span className="text-xs font-bold text-blue-400">→ Mark {nextMarkIndex + 1}</span>
-            <span className="text-xs text-gray-300 ml-1.5">{nextMark.name}</span>
-            <span className={`text-xs ml-1.5 font-medium ${nextMark.roundingSide === 'port' ? 'text-red-400' : 'text-green-400'}`}>
-              {nextMark.roundingSide === 'port' ? '● Port' : '● Stbd'}
-            </span>
-          </div>
-        )}
+        {/* Next-mark detail now lives in the coral CTM header/strip above the map. */}
 
         {/* Mark-reached flash — confirms rounding + points to the next mark */}
         {markReached && !finished && (
