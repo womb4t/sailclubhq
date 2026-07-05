@@ -338,6 +338,13 @@ export default function RaceGoPage() {
             <p className="text-xs text-gray-400 text-center">
               💡 Add to your home screen for offline use at sea.
             </p>
+            {!user && (
+              <p className="text-xs text-gray-500 text-center">
+                Racing without an account is fine — but{' '}
+                <a href={`/register?race=${token}`} className="text-blue-600 underline">register</a>{' '}
+                to keep detailed results &amp; history.
+              </p>
+            )}
           </Card>
         )}
 
