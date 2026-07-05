@@ -71,6 +71,7 @@ export default function DashboardPage() {
   }, [user])
 
   const firstName = profile?.full_name?.split(' ')[0] ?? user?.user_metadata?.full_name?.split(' ')[0] ?? 'there'
+  const isOfficer = profile?.role === 'admin' || profile?.role === 'race_officer'
 
   // Get unique series for filter
   const allSeries = Array.from(new Set(races.filter(r => r.series).map(r => r.series!))).sort()
@@ -115,24 +116,30 @@ export default function DashboardPage() {
 
       {/* Quick actions */}
       <div className="grid grid-cols-2 gap-3">
-        <Link href="/dashboard/races/new">
-          <Card className="text-center py-5 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
-            <div className="text-2xl mb-1">🏁</div>
-            <div className="text-sm font-medium text-gray-700">New race</div>
-          </Card>
-        </Link>
-        <Link href="/dashboard/marks">
-          <Card className="text-center py-5 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
-            <div className="text-2xl mb-1">📍</div>
-            <div className="text-sm font-medium text-gray-700">Marks</div>
-          </Card>
-        </Link>
-        <Link href="/dashboard/courses">
-          <Card className="text-center py-5 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
-            <div className="text-2xl mb-1">🗺️</div>
-            <div className="text-sm font-medium text-gray-700">Courses</div>
-          </Card>
-        </Link>
+        {isOfficer && (
+          <Link href="/dashboard/races/new">
+            <Card className="text-center py-5 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
+              <div className="text-2xl mb-1">🏁</div>
+              <div className="text-sm font-medium text-gray-700">New race</div>
+            </Card>
+          </Link>
+        )}
+        {isOfficer && (
+          <Link href="/dashboard/marks">
+            <Card className="text-center py-5 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
+              <div className="text-2xl mb-1">📍</div>
+              <div className="text-sm font-medium text-gray-700">Marks</div>
+            </Card>
+          </Link>
+        )}
+        {isOfficer && (
+          <Link href="/dashboard/courses">
+            <Card className="text-center py-5 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
+              <div className="text-2xl mb-1">🗺️</div>
+              <div className="text-sm font-medium text-gray-700">Courses</div>
+            </Card>
+          </Link>
+        )}
         <Link href="/dashboard/races">
           <Card className="text-center py-5 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer">
             <div className="text-2xl mb-1">📋</div>
@@ -293,10 +300,16 @@ export default function DashboardPage() {
 
       {races.length === 0 && !loading && (
         <Card className="text-center py-10">
-          <p className="text-gray-400 text-sm mb-4">No races yet. Ready to run your first one?</p>
-          <Link href="/dashboard/races/new">
-            <Button>Create your first race</Button>
-          </Link>
+          {isOfficer ? (
+            <>
+              <p className="text-gray-400 text-sm mb-4">No races yet. Ready to run your first one?</p>
+              <Link href="/dashboard/races/new">
+                <Button>Create your first race</Button>
+              </Link>
+            </>
+          ) : (
+            <p className="text-gray-400 text-sm">No races scheduled yet. They’ll appear here when your club sets one up.</p>
+          )}
         </Card>
       )}
     </div>

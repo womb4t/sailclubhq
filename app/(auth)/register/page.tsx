@@ -124,6 +124,17 @@ function RegisterForm() {
       }
     }
 
+    // Invited via a race link: add them to that race's club (as a member) if
+    // they aren't already in a club. This is how participants get into the
+    // club backend without any admin action.
+    if (raceToken) {
+      try {
+        await supabase.rpc('join_club_via_race', { p_token: raceToken })
+      } catch {
+        /* best-effort; entry still works even if club link fails */
+      }
+    }
+
     // Claim any anonymous race entry made on this device (from /race/go) so the
     // racer keeps the result they already sailed under a device participant_id.
     if (raceToken) {

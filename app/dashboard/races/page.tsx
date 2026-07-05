@@ -46,6 +46,7 @@ export default function RacesPage() {
   const [inviteCode, setInviteCode] = useState<string | null>(null)
   const [showShare, setShowShare] = useState(false)
   const [seriesFilter, setSeriesFilter] = useState<string>('all')
+  const [isOfficer, setIsOfficer] = useState(false)
   const shareRef = useRef<HTMLDivElement>(null)
 
   async function fetchRaces() {
@@ -55,9 +56,11 @@ export default function RacesPage() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('club_id')
+      .select('club_id, role')
       .eq('id', session.user.id)
       .maybeSingle()
+
+    setIsOfficer(profile?.role === 'admin' || profile?.role === 'race_officer')
 
     if (profile?.club_id) {
       const { data } = await supabase
@@ -147,7 +150,10 @@ export default function RacesPage() {
     return (
       <Card className="hover:border-blue-200 transition-all">
         <div className="flex items-start justify-between gap-2">
-          <Link href={`/dashboard/races/${race.id}`} className="flex-1 min-w-0 block">
+          <Link
+            href={isOfficer ? `/dashboard/races/${race.id}` : `/race/centre/${race.entry_token}`}
+            className="flex-1 min-w-0 block"
+          >
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold text-gray-900">{race.name}</span>
               {race.race_number && (
@@ -165,19 +171,23 @@ export default function RacesPage() {
               <p className="text-xs text-gray-400 mt-0.5">{race.series}</p>
             )}
           </Link>
-          <div className="flex gap-1.5 flex-shrink-0">
-            <Link href={`/dashboard/races/${race.id}/edit`}>
-              <Button variant="ghost" size="sm">Edit</Button>
-            </Link>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setDeleteTarget(race)}
-              className="text-red-500 hover:text-red-700"
-            >
-              Delete
-            </Button>
-          </div>
+          {isOfficer ? (
+            <div className="flex gap-1.5 flex-shrink-0">
+              <Link href={`/dashboard/races/${race.id}/edit`}>
+                <Button variant="ghost" size="sm">Edit</Button>
+              </Link>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDeleteTarget(race)}
+                className="text-red-500 hover:text-red-700"
+              >
+                Delete
+              </Button>
+            </div>
+          ) : (
+            <span className="text-xs text-blue-600 font-medium shrink-0 self-center">Open →</span>
+          )}
         </div>
       </Card>
     )
@@ -191,7 +201,7 @@ export default function RacesPage() {
           <p className="text-sm text-gray-500 mt-0.5">{races.length} race{races.length !== 1 ? 's' : ''} total</p>
         </div>
         <div className="flex items-center gap-2">
-          {inviteCode && (
+          {isOfficer && inviteCode && (
             <div className="relative" ref={shareRef}>
               <Button
                 variant="secondary"
@@ -238,9 +248,11 @@ export default function RacesPage() {
               )}
             </div>
           )}
-          <Link href="/dashboard/races/new">
-            <Button size="sm">+ New race</Button>
-          </Link>
+          {isOfficer && (
+            <Link href="/dashboard/races/new">
+              <Button size="sm">+ New race</Button>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -277,12 +289,16 @@ export default function RacesPage() {
         <div className="text-center py-16">
           <div className="text-4xl mb-3">🏁</div>
           <h2 className="text-lg font-semibold text-gray-700 mb-1">No races yet</h2>
-          <p className="text-sm text-gray-400 mb-6">
-            Create your first race to get started.
-          </p>
-          <Link href="/dashboard/races/new">
-            <Button>Create first race</Button>
-          </Link>
+          {isOfficer ? (
+            <>
+              <p className="text-sm text-gray-400 mb-6">Create your first race to get started.</p>
+              <Link href="/dashboard/races/new">
+                <Button>Create first race</Button>
+              </Link>
+            </>
+          ) : (
+            <p className="text-sm text-gray-400">They’ll appear here when your club sets one up.</p>
+          )}
         </div>
       ) : (
         <>

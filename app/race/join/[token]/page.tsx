@@ -151,6 +151,8 @@ export default function RaceJoinPage() {
     if (!user || !race) return
     async function fetchUserData() {
       const supabase = getBrowserClient()
+      // Invited via this race link: add to the race's club if not already in one.
+      try { await supabase.rpc('join_club_via_race', { p_token: token }) } catch { /* best-effort */ }
       const { data: prof } = await supabase
         .from('profiles')
         .select('*')
