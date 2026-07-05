@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '@/context/AuthContext'
+import { WaypointMark } from '@/components/WaypointMark'
 
 export default function RootPage() {
   const { user, loading } = useAuth()
@@ -42,7 +43,7 @@ export default function RootPage() {
       <div className="relative z-10 bg-blue-950/50 backdrop-blur-sm rounded-3xl px-8 py-10 max-w-2xl w-full flex flex-col items-center">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-4">
-            <span className="text-5xl drop-shadow-lg">⛵</span>
+            <WaypointMark className="h-16 w-16 text-white drop-shadow-lg" />
           </div>
           <h1 className="text-5xl font-bold text-white tracking-tight drop-shadow-lg">
             Waypoint Racing

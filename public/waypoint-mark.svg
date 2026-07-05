@@ -1,0 +1,31 @@
+<svg width="200" height="176" viewBox="0 0 200 176" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Waypoint Racing mark">
+  <!--
+    Waypoint Racing brand mark: three course marks (nodes) connected by legs,
+    forming a windward-leeward triangle. Single-colour via currentColor; the
+    node holes and route rails are true transparent cutouts (work on any bg).
+    Node centres: top (100,26), bottom-left (26,140), bottom-right (174,140).
+  -->
+  <defs>
+    <mask id="wp-cutouts">
+      <rect width="200" height="176" fill="white"/>
+      <!-- node holes -->
+      <circle cx="100" cy="26" r="12" fill="black"/>
+      <circle cx="26" cy="140" r="12" fill="black"/>
+      <circle cx="174" cy="140" r="12" fill="black"/>
+      <!-- route rails: thin lines running along the centre of each leg, inset from nodes -->
+      <line x1="46" y1="118" x2="88" y2="52" stroke="black" stroke-width="4" stroke-linecap="round"/>
+      <line x1="154" y1="118" x2="112" y2="52" stroke="black" stroke-width="4" stroke-linecap="round"/>
+      <line x1="52" y1="140" x2="148" y2="140" stroke="black" stroke-width="4" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <g fill="currentColor" mask="url(#wp-cutouts)">
+    <!-- legs (thick struts) -->
+    <path d="M26 140 L100 26 L116 37 L42 151 Z"/>
+    <path d="M100 26 L174 140 L158 151 L84 37 Z"/>
+    <path d="M26 130 L174 130 L174 150 L26 150 Z"/>
+    <!-- node outer rings (holes punched by mask) -->
+    <circle cx="100" cy="26" r="24"/>
+    <circle cx="26" cy="140" r="24"/>
+    <circle cx="174" cy="140" r="24"/>
+  </g>
+</svg>
