@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import type { Profile } from '@/types/database'
+import { IntroTour } from '@/components/IntroTour'
 
 const EXPERIENCE_LEVELS = [
   { value: '', label: 'Select level…' },
@@ -27,6 +28,7 @@ const RELATIONSHIPS = [
 
 export default function ProfilePage() {
   const { user } = useAuth()
+  const [showIntro, setShowIntro] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -242,6 +244,23 @@ export default function ProfilePage() {
           {saving ? 'Saving…' : saved && !dirty ? '✓ Profile Saved' : 'Save profile'}
         </Button>
       </form>
+
+      {/* Replay the intro tutorial on demand */}
+      <Card className="mt-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-gray-900">How Waypoint Racing works</p>
+            <p className="text-xs text-gray-500 mt-0.5">Replay the quick intro tutorial.</p>
+          </div>
+          <Button type="button" variant="secondary" size="sm" onClick={() => setShowIntro(true)}>
+            Show me
+          </Button>
+        </div>
+      </Card>
+
+      {showIntro && user && (
+        <IntroTour userId={user.id} onClose={() => setShowIntro(false)} />
+      )}
     </div>
   )
 }
