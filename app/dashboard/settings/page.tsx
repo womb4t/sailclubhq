@@ -155,6 +155,20 @@ export default function SettingsPage() {
     window.location.reload()
   }
 
+  // ── Race officer grant / revoke (admin only) ──────────────────────────────
+  async function setRaceOfficer(memberId: string, makeOfficer: boolean) {
+    setNominateBusy(true)
+    const supabase = getBrowserClient()
+    const { data, error: e } = await supabase.rpc('set_race_officer', { target: memberId, make_officer: makeOfficer })
+    setNominateBusy(false)
+    if (e) { alert('Could not update role: ' + e.message); return }
+    if (data === 'granted' || data === 'revoked') {
+      setMembers((ms) => ms.map((m) => (m.id === memberId ? { ...m, role: makeOfficer ? 'race_officer' : 'member' } : m)))
+    } else {
+      alert('Could not update role (' + data + ').')
+    }
+  }
+
   // ── Leave club (sole admin must hand over first) ──────────────────────────────
   async function leaveClub() {
     if (!confirm('Leave this club? You’ll lose access to its races and results until you rejoin.')) return
@@ -268,6 +282,7 @@ export default function SettingsPage() {
 
   const roleLabels: Record<string, string> = {
     admin: '👑 Admin',
+    race_officer: '🏳️ Race Officer',
     member: '⛵ Member',
   }
 
@@ -529,6 +544,25 @@ export default function SettingsPage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500">{roleLabels[m.role] ?? m.role}</span>
+                {myRole === 'admin' && m.id !== user?.id && m.role !== 'admin' && (
+                  m.role === 'race_officer' ? (
+                    <button
+                      onClick={() => setRaceOfficer(m.id, false)}
+                      disabled={nominateBusy}
+                      className="text-xs rounded-lg bg-red-50 hover:bg-red-100 text-red-700 px-2.5 py-1 font-medium disabled:opacity-50"
+                    >
+                      Remove officer
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setRaceOfficer(m.id, true)}
+                      disabled={nominateBusy}
+                      className="text-xs rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-2.5 py-1 font-medium disabled:opacity-50"
+                    >
+                      Make officer
+                    </button>
+                  )
+                )}
                 {myRole === 'admin' && m.id !== user?.id && m.role !== 'admin' && !club?.pending_admin_nominee && (
                   <button
                     onClick={() => nominateAdmin(m.id)}

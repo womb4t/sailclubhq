@@ -73,6 +73,10 @@ export default function NewRacePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [clubId, setClubId] = useState<string | null>(null)
+  const [myRole, setMyRole] = useState<string>('member')
+  const [officerCount, setOfficerCount] = useState(0)
+  const [claiming, setClaiming] = useState(false)
+  const canManage = myRole === 'admin' || myRole === 'race_officer'
   const [clubDefaultVhf, setClubDefaultVhf] = useState('')
 
   // Form state
@@ -135,13 +139,22 @@ export default function NewRacePage() {
       const supabase = getBrowserClient()
       const { data: profile } = await supabase
         .from('profiles')
-        .select('club_id')
+        .select('club_id, role')
         .eq('id', user!.id)
         .maybeSingle()
 
       if (!profile?.club_id) return
       const cid = profile.club_id
       setClubId(cid)
+      setMyRole((profile.role as string) ?? 'member')
+
+      // How many race officers does the club have? (drives the self-claim prompt)
+      const { count: roCount } = await supabase
+        .from('profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('club_id', cid)
+        .eq('role', 'race_officer')
+      setOfficerCount(roCount ?? 0)
 
       // Club members for OOD assignment
       const { data: mem } = await supabase
@@ -245,6 +258,19 @@ export default function NewRacePage() {
     setStartClasses(prev => prev.filter(c => c.id !== id))
   }
 
+  async function claimRaceOfficer() {
+    setClaiming(true)
+    const supabase = getBrowserClient()
+    const { data, error: e } = await supabase.rpc('claim_race_officer_if_none')
+    setClaiming(false)
+    if (e) { setError('Could not set you as race officer: ' + e.message); return }
+    if (data === 'claimed' || data === 'already-officer') {
+      setMyRole('race_officer')
+    } else if (data === 'officers-exist') {
+      setError('This club already has a race officer — ask a club admin to add you.')
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim() || !raceDate) return
@@ -327,6 +353,50 @@ export default function NewRacePage() {
   // Warning signal time = start_time - warning_mins
   function warningTime(classStartTime: string, warnMins: number): string {
     return addMinutes(classStartTime, -warnMins)
+  }
+
+  // Permission gate: only admin or race officer can create races.
+  if (clubId && !canManage) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">New race</h1>
+        </div>
+        <Card>
+          {officerCount === 0 ? (
+            <div className="space-y-3 text-center py-2">
+              <div className="text-4xl">🏳️</div>
+              <p className="text-base font-semibold text-gray-900">Are you the club race officer?</p>
+              <p className="text-sm text-gray-500 max-w-sm mx-auto">
+                Races are set up by a club’s race officer. Your club doesn’t have one yet — if that’s you, take the role and you can create and run races.
+              </p>
+              {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+              <div className="flex flex-col sm:flex-row gap-2 justify-center pt-1">
+                <Button onClick={claimRaceOfficer} loading={claiming} size="lg">
+                  Yes, I’m the race officer
+                </Button>
+                <Button variant="secondary" size="lg" onClick={() => router.push('/dashboard/races')}>
+                  Not me
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3 text-center py-2">
+              <div className="text-4xl">🔒</div>
+              <p className="text-base font-semibold text-gray-900">Race officers only</p>
+              <p className="text-sm text-gray-500 max-w-sm mx-auto">
+                Only a club admin or race officer can set up races. Ask a club admin to make you a race officer.
+              </p>
+              <div className="pt-1">
+                <Button variant="secondary" size="lg" onClick={() => router.push('/dashboard/races')}>
+                  Back to races
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
+    )
   }
 
   return (
