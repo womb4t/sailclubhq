@@ -96,10 +96,13 @@ interface RaceData {
   vhf_channel: string | null
   status: string
   entry_token: string
+  club_id: string | null
   course_template_id: string | null
   start_time: string | null
   ood_id: string | null
   ood_open_for_volunteer: boolean | null
+  ood_accepted: boolean | null
+  ood_assigned_by: string | null
 }
 
 interface StartClass {
@@ -157,8 +160,11 @@ export default function RaceCentrePage() {
   const [removingId, setRemovingId] = useState<string | null>(null)
   // Roles + OOD
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isOfficer, setIsOfficer] = useState(false)
   const [oodName, setOodName] = useState<string | null>(null)
   const [oodBusy, setOodBusy] = useState(false)
+  const [clubMembers, setClubMembers] = useState<Array<{ id: string; full_name: string | null }>>([])
+  const [pickTarget, setPickTarget] = useState('')
 
   // Auth gate: redirect to login if not signed in
   useEffect(() => {
@@ -177,7 +183,7 @@ export default function RaceCentrePage() {
 
       const { data: raceData, error: raceErr } = await supabase
         .from('races')
-        .select('id, name, race_number, series, race_date, notes, safety_info, vhf_channel, status, entry_token, course_template_id, start_time, ood_id, ood_open_for_volunteer')
+        .select('id, name, race_number, series, race_date, notes, safety_info, vhf_channel, status, entry_token, club_id, course_template_id, start_time, ood_id, ood_open_for_volunteer, ood_accepted, ood_assigned_by')
         .eq('entry_token', token)
         .single()
 
@@ -258,6 +264,8 @@ export default function RaceCentrePage() {
           .maybeSingle()
         if (prof?.full_name) setMyName(prof.full_name)
         if ((prof as { role?: string } | null)?.role === 'admin') setIsAdmin(true)
+        const rl = (prof as { role?: string } | null)?.role
+        if (rl === 'admin' || rl === 'race_officer') setIsOfficer(true)
         const { data: boat } = await supabase
           .from('boats')
           .select('boat_name, sail_number')
@@ -300,6 +308,17 @@ export default function RaceCentrePage() {
         setOodName(oodProf?.full_name ?? 'Assigned')
       }
 
+      // Club members (for nominate / pre-assign pickers).
+      const memberClubId = (raceData as RaceData).club_id
+      if (memberClubId) {
+        const { data: mem } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .eq('club_id', memberClubId)
+          .order('full_name', { ascending: true })
+        if (mem) setClubMembers(mem as Array<{ id: string; full_name: string | null }>)
+      }
+
       setLoading(false)
     }
 
@@ -316,20 +335,87 @@ export default function RaceCentrePage() {
   }
 
   // ── OOD (per-race) ────────────────────────────────────────────────────────
-  async function setOod(oodId: string | null, openForVolunteer: boolean) {
-    if (!race || !user) return
+  // Reload just the OOD fields + name after a lifecycle action.
+  async function refreshOod() {
+    if (!race) return
+    const supabase = getBrowserClient()
+    const { data } = await supabase
+      .from('races')
+      .select('ood_id, ood_accepted, ood_assigned_by')
+      .eq('id', race.id)
+      .maybeSingle()
+    if (!data) return
+    setRace((r) => (r ? { ...r, ood_id: data.ood_id, ood_accepted: data.ood_accepted, ood_assigned_by: data.ood_assigned_by } : r))
+    if (data.ood_id) {
+      if (data.ood_id === user?.id) setOodName(myName || 'You')
+      else {
+        const { data: p } = await supabase.from('profiles').select('full_name').eq('id', data.ood_id).maybeSingle()
+        setOodName(p?.full_name ?? 'Assigned')
+      }
+    } else setOodName(null)
+  }
+
+  async function takeOod(override = false) {
+    if (!race) return
     setOodBusy(true)
     const supabase = getBrowserClient()
-    const { error: e } = await supabase
-      .from('races')
-      .update({ ood_id: oodId, ood_open_for_volunteer: openForVolunteer })
-      .eq('id', race.id)
-    if (!e) {
-      setRace({ ...race, ood_id: oodId, ood_open_for_volunteer: openForVolunteer })
-      if (oodId === user.id) setOodName(myName || 'You')
-      else if (oodId === null) setOodName(null)
-    }
+    const { data, error: e } = await supabase.rpc('ood_take', { p_race: race.id, p_override: override })
     setOodBusy(false)
+    if (e) { alert('Could not take OOD: ' + e.message); return }
+    if (data === 'needs-confirm') {
+      const who = oodName ?? 'Someone'
+      if (confirm(`${who} was assigned as OOD but hasn’t accepted yet. Are you sure you want to take it?`)) {
+        await takeOod(true)
+      }
+      return
+    }
+    if (data === 'blocked-accepted') {
+      alert(`${oodName ?? 'Someone'} is already the accepted Officer of the Day. Only they can nominate a replacement.`)
+      return
+    }
+    await refreshOod()
+  }
+
+  async function acceptOod() {
+    if (!race) return
+    setOodBusy(true)
+    const supabase = getBrowserClient()
+    await supabase.rpc('ood_accept', { p_race: race.id })
+    setOodBusy(false)
+    await refreshOod()
+  }
+
+  async function standDownOod() {
+    if (!race) return
+    setOodBusy(true)
+    const supabase = getBrowserClient()
+    await supabase.rpc('ood_stand_down', { p_race: race.id })
+    setOodBusy(false)
+    await refreshOod()
+  }
+
+  async function nominateOod(target: string) {
+    if (!race || !target) return
+    setOodBusy(true)
+    const supabase = getBrowserClient()
+    const { data, error: e } = await supabase.rpc('ood_nominate', { p_race: race.id, p_target: target })
+    setOodBusy(false)
+    if (e) { alert('Could not nominate: ' + e.message); return }
+    if (data !== 'nominated') { alert('Could not nominate (' + data + ').'); return }
+    setPickTarget('')
+    await refreshOod()
+  }
+
+  async function assignOod(target: string) {
+    if (!race || !target) return
+    setOodBusy(true)
+    const supabase = getBrowserClient()
+    const { data, error: e } = await supabase.rpc('ood_assign', { p_race: race.id, p_target: target })
+    setOodBusy(false)
+    if (e) { alert('Could not assign: ' + e.message); return }
+    if (data !== 'assigned') { alert('Could not assign (' + data + ').'); return }
+    setPickTarget('')
+    await refreshOod()
   }
 
   const iAmOod = !!race && race.ood_id === user?.id
@@ -631,43 +717,107 @@ export default function RaceCentrePage() {
             <CardTitle>Officer of the Day</CardTitle>
           </CardHeader>
           {race?.ood_id ? (
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm text-gray-900">🏳️ {oodName}{iAmOod && ' (you)'}</p>
-              {(isAdmin || iAmOod) && (
-                <button
-                  onClick={() => setOod(null, false)}
-                  disabled={oodBusy}
-                  className="text-xs rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 font-medium disabled:opacity-50"
-                >
-                  Stand down
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-sm text-gray-500">
-                {race?.ood_open_for_volunteer
-                  ? 'No OOD yet — open for a volunteer.'
-                  : 'No Officer of the Day assigned.'}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setOod(user!.id, false)}
-                  disabled={oodBusy}
-                  className="text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 font-medium disabled:opacity-50"
-                >
-                  🙋 Volunteer as OOD
-                </button>
-                {isAdmin && !race?.ood_open_for_volunteer && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm text-gray-900">
+                    🏳️ {oodName}{iAmOod && ' (you)'}
+                  </p>
+                  <p className="text-xs mt-0.5">
+                    {race.ood_accepted
+                      ? <span className="text-emerald-600 font-medium">✅ Accepted</span>
+                      : <span className="text-amber-600 font-medium">⏳ Assigned — not yet accepted</span>}
+                  </p>
+                </div>
+                {(isOfficer || iAmOod) && (
                   <button
-                    onClick={() => setOod(null, true)}
+                    onClick={standDownOod}
                     disabled={oodBusy}
-                    className="text-sm rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 font-medium disabled:opacity-50"
+                    className="shrink-0 text-xs rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 font-medium disabled:opacity-50"
                   >
-                    Open for volunteer
+                    Stand down
                   </button>
                 )}
               </div>
+
+              {/* I'm the provisional assignee — accept it */}
+              {iAmOod && !race.ood_accepted && (
+                <button
+                  onClick={acceptOod}
+                  disabled={oodBusy}
+                  className="w-full text-sm rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 font-semibold disabled:opacity-50"
+                >
+                  ✅ Accept OOD role
+                </button>
+              )}
+
+              {/* Provisional (assigned, not accepted) and not me — anyone can take over (with confirm) */}
+              {!race.ood_accepted && !iAmOod && (
+                <button
+                  onClick={() => takeOod(false)}
+                  disabled={oodBusy}
+                  className="w-full text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 font-medium disabled:opacity-50"
+                >
+                  Take OOD instead
+                </button>
+              )}
+
+              {/* Current OOD can nominate a successor */}
+              {iAmOod && clubMembers.length > 1 && (
+                <div className="flex gap-2 pt-1">
+                  <select
+                    value={pickTarget}
+                    onChange={(e) => setPickTarget(e.target.value)}
+                    className="flex-1 rounded-lg border border-gray-300 px-2 py-2 text-sm"
+                  >
+                    <option value="">Nominate a successor…</option>
+                    {clubMembers.filter((mm) => mm.id !== user?.id).map((mm) => (
+                      <option key={mm.id} value={mm.id}>{mm.full_name ?? 'Unnamed'}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => nominateOod(pickTarget)}
+                    disabled={oodBusy || !pickTarget}
+                    className="shrink-0 text-sm rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 font-medium disabled:opacity-50"
+                  >
+                    Nominate
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-500">No Officer of the Day yet — anyone can take it.</p>
+              <button
+                onClick={() => takeOod(false)}
+                disabled={oodBusy}
+                className="text-sm rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 font-medium disabled:opacity-50"
+              >
+                🙋 Take OOD
+              </button>
+
+              {/* Officer can pre-assign someone (they must accept) */}
+              {isOfficer && clubMembers.length > 0 && (
+                <div className="flex gap-2 pt-1 border-t border-gray-100">
+                  <select
+                    value={pickTarget}
+                    onChange={(e) => setPickTarget(e.target.value)}
+                    className="flex-1 rounded-lg border border-gray-300 px-2 py-2 text-sm"
+                  >
+                    <option value="">Pre-assign an OOD…</option>
+                    {clubMembers.map((mm) => (
+                      <option key={mm.id} value={mm.id}>{mm.full_name ?? 'Unnamed'}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => assignOod(pickTarget)}
+                    disabled={oodBusy || !pickTarget}
+                    className="shrink-0 text-sm rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 font-medium disabled:opacity-50"
+                  >
+                    Assign
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </Card>
