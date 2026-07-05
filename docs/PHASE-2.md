@@ -46,10 +46,21 @@ Impact: touches almost every query + all role logic. Do it as its own project.
 
 ---
 
-## 4. Wind / tide data + true CTS ⚪
-- Bottom-sheet conditions panel (à la Savvy Navvy): TWD, point-of-sail, cross-tide.
-- Enables a real **CTS (Course To Steer)** vs the current honest **BTM (Bearing To
-  Mark)**. Requires a marine forecast + tide data source (provider TBD).
+## 4. Weather & tides 🟡
+**Live/forecast weather and tide data across the app.**
+
+Uses:
+- **Race planning** — forecast wind, gusts, and tide times/heights for a race’s
+  date + venue (on Race Centre, race setup, public calendar).
+- **On-the-water nav** — bottom-sheet conditions panel (à la Savvy Navvy): TWD,
+  point-of-sail, cross-tide, tidal set.
+- **True CTS** — enables a real **CTS (Course To Steer)** with tide/leeway
+  correction, vs the current honest **BTM (Bearing To Mark)**.
+- Tidal gates / stream awareness near marks (later).
+
+Needs: a marine weather forecast source + a tide data source (provider TBD; e.g.
+Open-Meteo marine, Admiralty/UKHO tides, StormGlass). Cache per venue/day.
+Consider cost + rate limits before wiring.
 
 ---
 
