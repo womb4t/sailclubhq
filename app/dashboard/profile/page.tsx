@@ -29,6 +29,25 @@ const RELATIONSHIPS = [
 export default function ProfilePage() {
   const { user, signOut } = useAuth()
   const [showIntro, setShowIntro] = useState(false)
+  // Change password
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwMsg, setPwMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+
+  async function changePassword(e: React.FormEvent) {
+    e.preventDefault()
+    setPwMsg(null)
+    if (newPassword.length < 8) { setPwMsg({ type: 'err', text: 'Password must be at least 8 characters.' }); return }
+    if (newPassword !== confirmPassword) { setPwMsg({ type: 'err', text: 'Passwords don’t match.' }); return }
+    setPwSaving(true)
+    const supabase = getBrowserClient()
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    setPwSaving(false)
+    if (error) { setPwMsg({ type: 'err', text: error.message }); return }
+    setNewPassword(''); setConfirmPassword('')
+    setPwMsg({ type: 'ok', text: '✅ Password updated.' })
+  }
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -244,6 +263,41 @@ export default function ProfilePage() {
           {saving ? 'Saving…' : saved && !dirty ? '✓ Profile Saved' : 'Save profile'}
         </Button>
       </form>
+
+      {/* Change password */}
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle>Change password</CardTitle>
+        </CardHeader>
+        <form onSubmit={changePassword} className="space-y-3">
+          <Input
+            label="New password"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="••••••••"
+            autoComplete="new-password"
+            minLength={8}
+          />
+          <Input
+            label="Confirm new password"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            placeholder="••••••••"
+            autoComplete="new-password"
+            minLength={8}
+          />
+          {pwMsg && (
+            <p className={`text-sm rounded-lg px-3 py-2 ${pwMsg.type === 'ok' ? 'text-emerald-700 bg-emerald-50' : 'text-red-600 bg-red-50'}`}>
+              {pwMsg.text}
+            </p>
+          )}
+          <Button type="submit" variant="secondary" size="sm" loading={pwSaving} disabled={!newPassword || !confirmPassword}>
+            Update password
+          </Button>
+        </form>
+      </Card>
 
       {/* Replay the intro tutorial on demand */}
       <Card className="mt-4">
