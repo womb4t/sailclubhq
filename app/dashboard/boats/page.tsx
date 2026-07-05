@@ -161,7 +161,8 @@ export default function MyBoatsPage() {
 
   async function handleFormSave(e: React.FormEvent) {
     e.preventDefault()
-    if (!user || !clubId) return
+    // Boats belong to the person, not a club — no club required to add one.
+    if (!user) return
     if (!form.boat_name.trim()) {
       setFormError('Boat name is required')
       return
@@ -187,7 +188,7 @@ export default function MyBoatsPage() {
       ;({ error } = await supabase.from('boats').insert({
         ...payload,
         owner_id: user.id,
-        club_id: clubId,
+        club_id: clubId, // optional legacy link; boat is owned by owner_id
       }))
     }
 

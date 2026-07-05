@@ -103,25 +103,23 @@ function RegisterForm() {
       return
     }
 
-    // Create boat if provided
+    // Create boat if provided. Boats belong to the person, so save it regardless
+    // of club (club_id is an optional legacy link).
     if (ownsBoat && boatName.trim()) {
-      // Get club_id from profile
       const { data: profile } = await supabase
         .from('profiles')
         .select('club_id')
         .eq('id', user.id)
         .maybeSingle()
 
-      if (profile?.club_id) {
-        await supabase.from('boats').insert({
-          club_id: profile.club_id,
-          owner_id: user.id,
-          owner_name: fullName.trim(),
-          boat_name: boatName.trim(),
-          class: boatClass.trim() || null,
-          sail_number: sailNumber.trim() || null,
-        })
-      }
+      await supabase.from('boats').insert({
+        club_id: profile?.club_id ?? null,
+        owner_id: user.id,
+        owner_name: fullName.trim(),
+        boat_name: boatName.trim(),
+        class: boatClass.trim() || null,
+        sail_number: sailNumber.trim() || null,
+      })
     }
 
     // Invited via a race link: add them to that race's club (as a member) if

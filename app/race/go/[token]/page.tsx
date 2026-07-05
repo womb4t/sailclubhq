@@ -97,15 +97,30 @@ export default function RaceGoPage() {
     }
     setRace(r as RaceInfo)
 
-    // Boat suggestions for the club (own boats first when logged in).
+    // Boat suggestions: the logged-in user's own boats (person-owned) plus any
+    // club boats as extra suggestions. Deduped, own-first.
+    const collected: BoatSuggestion[] = []
+    const seen = new Set<string>()
+    const add = (rows: BoatSuggestion[] | null) => {
+      for (const b of rows ?? []) { if (!seen.has(b.id)) { seen.add(b.id); collected.push(b) } }
+    }
+    if (user) {
+      const { data: own } = await supabase
+        .from('boats')
+        .select('id, boat_name, sail_number, class, owner_id')
+        .eq('owner_id', user.id)
+        .order('boat_name', { ascending: true })
+      add(own as BoatSuggestion[] | null)
+    }
     if (r.club_id) {
       const { data: b } = await supabase
         .from('boats')
         .select('id, boat_name, sail_number, class, owner_id')
         .eq('club_id', r.club_id)
         .order('boat_name', { ascending: true })
-      if (b) setBoats(b as BoatSuggestion[])
+      add(b as BoatSuggestion[] | null)
     }
+    setBoats(collected)
     setLoading(false)
     }
     void load()
