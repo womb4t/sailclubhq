@@ -155,6 +155,21 @@ export default function SettingsPage() {
     window.location.reload()
   }
 
+  // ── Leave club (sole admin must hand over first) ──────────────────────────────
+  async function leaveClub() {
+    if (!confirm('Leave this club? You’ll lose access to its races and results until you rejoin.')) return
+    setNominateBusy(true)
+    const supabase = getBrowserClient()
+    const { data, error: e } = await supabase.rpc('leave_club')
+    setNominateBusy(false)
+    if (e) { alert('Could not leave the club: ' + e.message); return }
+    if (data === 'needs-successor') {
+      alert('You’re the only admin. Nominate a new admin below and have them accept before you can leave — a club must always keep an admin.')
+      return
+    }
+    window.location.href = '/dashboard/onboarding'
+  }
+
   async function handleAddSeries() {
     if (!club || !newSeriesName.trim()) return
     setSeriesError('')
@@ -526,6 +541,32 @@ export default function SettingsPage() {
               </div>
             </div>
           ))}
+        </div>
+      </Card>
+
+      {/* Leave club */}
+      <Card className="border border-red-200">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-gray-900">Leave this club</p>
+            {myRole === 'admin' && members.filter((m) => m.role === 'admin').length <= 1 ? (
+              <p className="text-xs text-amber-700 mt-0.5">
+                You’re the only admin — nominate a new admin above and have them accept before you can leave.
+              </p>
+            ) : (
+              <p className="text-xs text-gray-500 mt-0.5">You’ll lose access to this club’s races and results until you rejoin.</p>
+            )}
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={leaveClub}
+            disabled={nominateBusy}
+            className="shrink-0 border-red-300 text-red-700 hover:bg-red-50"
+          >
+            Leave club
+          </Button>
         </div>
       </Card>
     </div>
