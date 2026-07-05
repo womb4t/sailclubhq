@@ -521,6 +521,18 @@ export default function RaceDetailPage() {
         </div>
       </div>
 
+      {/* Officers race too: jump to the participant hub to enter & sail this race */}
+      <Link
+        href={`/race/centre/${race.entry_token}`}
+        className="flex items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 hover:bg-blue-100 transition-colors"
+      >
+        <div>
+          <p className="text-sm font-semibold text-blue-900">🏁 Enter &amp; race this yourself</p>
+          <p className="text-xs text-blue-700/80 mt-0.5">Open the participant Race Centre — enter in advance, then nav/track on the day.</p>
+        </div>
+        <span className="shrink-0 text-blue-700 font-medium text-sm">Race Centre →</span>
+      </Link>
+
       {/* Status actions */}
       {(statusTransitions[race.status] ?? []).length > 0 && (
         <Card>
