@@ -874,9 +874,9 @@ export default function LiveRacePage() {
     ? bearingDeg(currentPos.lat, currentPos.lon, nextMark.lat, nextMark.lon)
     : null
 
-  // Course To Mark (CTM) = bearing to next mark. We deliberately do NOT call this
-  // CTS (Course To Steer) because we have no tide/wind data to correct for.
-  const ctmDeg = bearingToMark
+  // Bearing To Mark (BTM) = straight-line bearing to next mark. We deliberately
+  // do NOT call this CTS (Course To Steer) — we have no tide/wind data to correct for.
+  const btmDeg = bearingToMark
 
   // Time to mark at current SOG (rough ETA; straight-line, no tide/leeway).
   const secsToMark =
@@ -1039,7 +1039,7 @@ export default function LiveRacePage() {
         </Link>
       </div>
 
-      {/* CTM instruction header (Savvy-Navvy style). CTM = Course To Mark (bearing);
+      {/* BTM instruction header (Savvy-Navvy style). BTM = Bearing To Mark (straight-line);
           NOT CTS — we have no tide/wind data to correct for. */}
       {isRacing && !finished && (
         <div className="bg-rose-500 text-white shrink-0 px-4 py-2.5 flex items-center gap-3 shadow-md z-10">
@@ -1048,12 +1048,12 @@ export default function LiveRacePage() {
           </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 flex-1 min-w-0">
             <div className="leading-tight">
-              <span className="text-[11px] uppercase tracking-wide opacity-80">CTM </span>
+              <span className="text-[11px] uppercase tracking-wide opacity-80">BTM </span>
               <span className="text-lg font-bold tabular-nums">
-                {ctmDeg != null ? `${Math.round(ctmDeg)}°` : '—'}
+                {btmDeg != null ? `${Math.round(btmDeg)}°` : '—'}
               </span>
-              {ctmDeg != null && (
-                <span className="text-[11px] opacity-80 ml-1">{compassPoint(ctmDeg)}</span>
+              {btmDeg != null && (
+                <span className="text-[11px] opacity-80 ml-1">{compassPoint(btmDeg)}</span>
               )}
             </div>
             <div className="leading-tight text-right">
@@ -1132,7 +1132,7 @@ export default function LiveRacePage() {
           </button>
         </div>
 
-        {/* Next-mark detail now lives in the coral CTM header/strip above the map. */}
+        {/* Next-mark detail now lives in the coral BTM header/strip above the map. */}
 
         {/* Mark-reached flash — confirms rounding + points to the next mark */}
         {markReached && !finished && (
