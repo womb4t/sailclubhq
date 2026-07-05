@@ -15,6 +15,7 @@ import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card } from '@/components/ui/Card'
+import { WaypointFooter } from '@/components/WaypointFooter'
 
 interface RaceInfo {
   id: string
@@ -354,6 +355,7 @@ export default function RaceGoPage() {
           </Link>
         </p>
       </div>
+      <WaypointFooter tone="dark" />
     </div>
   )
 }

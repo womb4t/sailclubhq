@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import type { Profile, Boat } from '@/types/database'
+import { WaypointFooter } from '@/components/WaypointFooter'
 
 interface RaceInfo {
   id: string
@@ -751,6 +752,7 @@ export default function RaceJoinPage() {
         )}
 
       </div>
+      <WaypointFooter tone="light" />
     </div>
   )
 }

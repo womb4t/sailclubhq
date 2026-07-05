@@ -13,6 +13,7 @@ import Link from 'next/link'
 import { getBrowserClient } from '@/lib/supabase/browser'
 import { useFleetPositions } from '@/lib/useFleetPositions'
 import { computeStandings, formatElapsed } from '@/lib/race-standings'
+import { WaypointFooter } from '@/components/WaypointFooter'
 
 interface RaceInfo {
   id: string
@@ -171,6 +172,7 @@ export default function RaceResultsPage() {
           <Link href={`/race/centre/${token}`} className="text-blue-600 underline">Race Centre</Link>
         </div>
       </div>
+      <WaypointFooter tone="light" />
     </div>
   )
 }

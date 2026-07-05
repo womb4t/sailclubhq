@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { getBrowserClient } from '@/lib/supabase/browser'
 import { Button } from '@/components/ui/Button'
+import { WaypointFooter } from '@/components/WaypointFooter'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -356,6 +357,7 @@ export default function ClubHomePage() {
         </section>
 
       </div>
+      <WaypointFooter tone="light" />
     </div>
   )
 }

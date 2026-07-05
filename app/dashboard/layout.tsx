@@ -1,6 +1,7 @@
 import { AuthGuard } from '@/components/AuthGuard'
 import { DashboardNav } from './DashboardNav'
 import { WaypointMark } from '@/components/WaypointMark'
+import { WaypointFooter } from '@/components/WaypointFooter'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -24,6 +25,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="max-w-3xl mx-auto px-4 py-6">
               {children}
             </div>
+            <WaypointFooter tone="light" />
           </main>
         </div>
         <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 z-50">

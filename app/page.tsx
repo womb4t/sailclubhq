@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useAuth } from '@/context/AuthContext'
 import { WaypointMark } from '@/components/WaypointMark'
+import { WaypointFooter } from '@/components/WaypointFooter'
 
 export default function RootPage() {
   const { user, loading } = useAuth()
@@ -95,6 +96,7 @@ export default function RootPage() {
           Cameron Shaw
         </a>
       </p>
+      <WaypointFooter tone="dark" className="relative z-10 mt-2" />
     </main>
   )
 }

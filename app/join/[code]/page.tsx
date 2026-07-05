@@ -7,6 +7,7 @@ import { getBrowserClient } from '@/lib/supabase/browser'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
+import { WaypointFooter } from '@/components/WaypointFooter'
 
 export default function JoinClubPage() {
   const params = useParams()
@@ -175,6 +176,7 @@ export default function JoinClubPage() {
           )}
         </Card>
       </div>
+      <WaypointFooter tone="light" />
     </div>
   )
 }

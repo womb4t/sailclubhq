@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getBrowserClient } from '@/lib/supabase/browser'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { WaypointFooter } from '@/components/WaypointFooter'
 
 function LoginForm() {
   const searchParams = useSearchParams()
@@ -154,10 +155,11 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4 relative">
       <Suspense fallback={<div className="text-gray-400 text-sm">Loading...</div>}>
         <LoginForm />
       </Suspense>
+      <WaypointFooter tone="light" className="absolute bottom-0 inset-x-0" />
     </div>
   )
 }

@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge, RoundingBadge } from '@/components/ui/Badge'
+import { WaypointFooter } from '@/components/WaypointFooter'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -787,6 +788,7 @@ export default function RaceCentrePage() {
           )}
         </Card>
       </div>
+      <WaypointFooter tone="light" />
     </div>
   )
 }

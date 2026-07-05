@@ -2,6 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { RaceNavLink } from '@/components/races/RaceNavLink'
+import { WaypointMark } from '@/components/WaypointMark'
+import { WaypointFooter } from '@/components/WaypointFooter'
 
 function getSupabase() {
   return createClient(
@@ -123,7 +125,7 @@ export default async function PublicRaceCalendarPage({ params }: PageProps) {
       <div className="bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-2xl mx-auto px-4 py-6">
           <div className="flex items-center gap-3">
-            <span className="text-3xl">⛵</span>
+            <WaypointMark className="h-8 w-8 text-blue-950" />
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{club.name}</h1>
               <p className="text-sm text-gray-500 mt-0.5">Race Calendar</p>
@@ -192,6 +194,7 @@ export default async function PublicRaceCalendarPage({ params }: PageProps) {
           </>
         )}
       </div>
+      <WaypointFooter tone="light" />
     </div>
   )
 }
