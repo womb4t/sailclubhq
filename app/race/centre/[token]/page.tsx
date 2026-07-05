@@ -156,8 +156,13 @@ export default function RaceCentrePage() {
   const [myName, setMyName] = useState<string>('')
   // Fleet (entries) + organiser remove.
   const [entries, setEntries] = useState<Array<{ id: string; boat_name: string | null; helm_name: string | null; status: string }>>([])
-  const [crewAvailable, setCrewAvailable] = useState<Array<{ id: string; helm_name: string | null; phone: string | null }>>([])
+  const [crewAvailable, setCrewAvailable] = useState<Array<{ id: string; helm_name: string | null; phone: string | null; crew_invited_by: string | null; crew_invite_status: string | null }>>([])
   const [myEntry, setMyEntry] = useState<{ id: string; boat_name: string | null; status: string } | null>(null)
+  // My own crew-available entry (if I entered as crew looking for a boat) + any invite on it.
+  const [myCrewEntry, setMyCrewEntry] = useState<{ id: string; crew_invited_by: string | null; crew_invite_status: string | null; crew_invited_boat_name: string | null } | null>(null)
+  // My boat entry in this race (if any) — lets me, as a helm, invite crew.
+  const [myBoatEntry, setMyBoatEntry] = useState<{ id: string; boat_name: string | null; boat_id: string | null } | null>(null)
+  const [crewBusyId, setCrewBusyId] = useState<string | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
   // Roles + OOD
   const [isAdmin, setIsAdmin] = useState(false)
@@ -280,17 +285,24 @@ export default function RaceCentrePage() {
       // Fleet: everyone entered in this race.
       const { data: ents } = await supabase
         .from('race_entries')
-        .select('id, boat_name, helm_name, phone, status, role, boat_id')
+        .select('id, boat_name, helm_name, phone, status, role, boat_id, user_id, participant_id, crew_invited_by, crew_invite_status, crew_invited_boat_name')
         .eq('race_id', raceData.id)
         .neq('status', 'withdrawn')
         .order('created_at', { ascending: true })
+      const myParticipantId = typeof window !== 'undefined' ? window.localStorage.getItem('participant_id') : null
       if (ents) {
-        const rows = ents as Array<{ id: string; boat_name: string | null; helm_name: string | null; phone: string | null; status: string; role: string | null; boat_id: string | null }>
-        // Crew available = entered as crew with no boat.
-        const crew = rows.filter((r) => r.role === 'crew' && !r.boat_id)
-        const boats = rows.filter((r) => !(r.role === 'crew' && !r.boat_id))
+        const rows = ents as Array<{ id: string; boat_name: string | null; helm_name: string | null; phone: string | null; status: string; role: string | null; boat_id: string | null; user_id: string | null; participant_id: string | null; crew_invited_by: string | null; crew_invite_status: string | null; crew_invited_boat_name: string | null }>
+        // Crew available = entered as crew with no boat AND not yet accepted onto one.
+        const crew = rows.filter((r) => r.role === 'crew' && !r.boat_id && r.crew_invite_status !== 'accepted')
+        const boats = rows.filter((r) => !(r.role === 'crew' && !r.boat_id && r.crew_invite_status !== 'accepted'))
         setEntries(boats.map((r) => ({ id: r.id, boat_name: r.boat_name, helm_name: r.helm_name, status: r.status })))
-        setCrewAvailable(crew.map((r) => ({ id: r.id, helm_name: (r.helm_name ?? '').replace(/\s*\(available as crew\)\s*/i, '').trim() || 'A sailor', phone: r.phone })))
+        setCrewAvailable(crew.map((r) => ({ id: r.id, helm_name: (r.helm_name ?? '').replace(/\s*\(available as crew\)\s*/i, '').trim() || 'A sailor', phone: r.phone, crew_invited_by: r.crew_invited_by, crew_invite_status: r.crew_invite_status })))
+        // Is one of these crew rows MINE? (by user_id or this device's participant_id)
+        const mineCrew = rows.find((r) => r.role === 'crew' && !r.boat_id && ((user && r.user_id === user.id) || (myParticipantId && r.participant_id === myParticipantId)))
+        setMyCrewEntry(mineCrew ? { id: mineCrew.id, crew_invited_by: mineCrew.crew_invited_by, crew_invite_status: mineCrew.crew_invite_status, crew_invited_boat_name: mineCrew.crew_invited_boat_name } : null)
+        // Do I have a BOAT entry here? (lets me invite crew)
+        const mineBoat = rows.find((r) => r.boat_id && ((user && r.user_id === user.id) || (myParticipantId && r.participant_id === myParticipantId)))
+        setMyBoatEntry(mineBoat ? { id: mineBoat.id, boat_name: mineBoat.boat_name, boat_id: mineBoat.boat_id } : null)
       }
 
       // Am I entered? (drives the advance-entry card)
@@ -341,6 +353,95 @@ export default function RaceCentrePage() {
     const { error: delErr } = await supabase.from('race_entries').delete().eq('id', id)
     if (!delErr) setEntries((prev) => prev.filter((e) => e.id !== id))
     setRemovingId(null)
+  }
+
+  // ── Crew invites ──────────────────────────────────────────────────────────────
+  // Reload the entry lists (crew + fleet + my entries) after an invite action.
+  async function reloadEntries() {
+    if (!race) return
+    const supabase = getBrowserClient()
+    const { data: ents } = await supabase
+      .from('race_entries')
+      .select('id, boat_name, helm_name, phone, status, role, boat_id, user_id, participant_id, crew_invited_by, crew_invite_status, crew_invited_boat_name')
+      .eq('race_id', race.id)
+      .neq('status', 'withdrawn')
+      .order('created_at', { ascending: true })
+    if (!ents) return
+    const rows = ents as Array<{ id: string; boat_name: string | null; helm_name: string | null; phone: string | null; status: string; role: string | null; boat_id: string | null; user_id: string | null; participant_id: string | null; crew_invited_by: string | null; crew_invite_status: string | null; crew_invited_boat_name: string | null }>
+    const myParticipantId = typeof window !== 'undefined' ? window.localStorage.getItem('participant_id') : null
+    const crew = rows.filter((r) => r.role === 'crew' && !r.boat_id && r.crew_invite_status !== 'accepted')
+    const boats = rows.filter((r) => !(r.role === 'crew' && !r.boat_id && r.crew_invite_status !== 'accepted'))
+    setEntries(boats.map((r) => ({ id: r.id, boat_name: r.boat_name, helm_name: r.helm_name, status: r.status })))
+    setCrewAvailable(crew.map((r) => ({ id: r.id, helm_name: (r.helm_name ?? '').replace(/\s*\(available as crew\)\s*/i, '').trim() || 'A sailor', phone: r.phone, crew_invited_by: r.crew_invited_by, crew_invite_status: r.crew_invite_status })))
+    const mineCrew = rows.find((r) => r.role === 'crew' && !r.boat_id && ((user && r.user_id === user.id) || (myParticipantId && r.participant_id === myParticipantId)))
+    setMyCrewEntry(mineCrew ? { id: mineCrew.id, crew_invited_by: mineCrew.crew_invited_by, crew_invite_status: mineCrew.crew_invite_status, crew_invited_boat_name: mineCrew.crew_invited_boat_name } : null)
+    const mineBoat = rows.find((r) => r.boat_id && ((user && r.user_id === user.id) || (myParticipantId && r.participant_id === myParticipantId)))
+    setMyBoatEntry(mineBoat ? { id: mineBoat.id, boat_name: mineBoat.boat_name, boat_id: mineBoat.boat_id } : null)
+  }
+
+  // Helm invites a crew-available sailor to their boat.
+  async function inviteCrew(crewEntryId: string) {
+    if (!myBoatEntry) return
+    setCrewBusyId(crewEntryId)
+    const supabase = getBrowserClient()
+    const { error } = await supabase
+      .from('race_entries')
+      .update({ crew_invited_by: myBoatEntry.id, crew_invite_status: 'pending', crew_invited_boat_name: myBoatEntry.boat_name })
+      .eq('id', crewEntryId)
+    setCrewBusyId(null)
+    if (error) { alert('Could not send invite: ' + error.message); return }
+    await reloadEntries()
+  }
+
+  // Helm cancels a pending invite they sent.
+  async function cancelCrewInvite(crewEntryId: string) {
+    setCrewBusyId(crewEntryId)
+    const supabase = getBrowserClient()
+    const { error } = await supabase
+      .from('race_entries')
+      .update({ crew_invited_by: null, crew_invite_status: null, crew_invited_boat_name: null })
+      .eq('id', crewEntryId)
+    setCrewBusyId(null)
+    if (error) { alert('Could not cancel invite: ' + error.message); return }
+    await reloadEntries()
+  }
+
+  // Crew accepts the invite → attach to the helm's boat (drops off available list).
+  async function acceptCrewInvite() {
+    if (!myCrewEntry?.crew_invited_by) return
+    setCrewBusyId(myCrewEntry.id)
+    const supabase = getBrowserClient()
+    // Look up the inviting boat entry to copy its boat.
+    const { data: helm } = await supabase
+      .from('race_entries')
+      .select('boat_id, boat_name')
+      .eq('id', myCrewEntry.crew_invited_by)
+      .maybeSingle()
+    const { error } = await supabase
+      .from('race_entries')
+      .update({
+        crew_invite_status: 'accepted',
+        boat_id: (helm as { boat_id: string | null } | null)?.boat_id ?? null,
+        boat_name: (helm as { boat_name: string | null } | null)?.boat_name ?? myCrewEntry.crew_invited_boat_name,
+      })
+      .eq('id', myCrewEntry.id)
+    setCrewBusyId(null)
+    if (error) { alert('Could not accept: ' + error.message); return }
+    await reloadEntries()
+  }
+
+  // Crew declines the invite → stays available.
+  async function declineCrewInvite() {
+    if (!myCrewEntry) return
+    setCrewBusyId(myCrewEntry.id)
+    const supabase = getBrowserClient()
+    const { error } = await supabase
+      .from('race_entries')
+      .update({ crew_invited_by: null, crew_invite_status: 'declined', crew_invited_boat_name: null })
+      .eq('id', myCrewEntry.id)
+    setCrewBusyId(null)
+    if (error) { alert('Could not decline: ' + error.message); return }
+    await reloadEntries()
   }
 
   // ── OOD (per-race) ────────────────────────────────────────────────────────
@@ -831,26 +932,87 @@ export default function RaceCentrePage() {
           )}
         </Card>
 
+        {/* Crew: MY pending/decided invite (shown to the crew member) */}
+        {myCrewEntry && myCrewEntry.crew_invite_status === 'pending' && myCrewEntry.crew_invited_by && (
+          <Card>
+            <CardHeader>
+              <CardTitle>⛵ You’ve been invited to crew</CardTitle>
+            </CardHeader>
+            <p className="text-sm text-gray-700 mb-3">
+              <span className="font-semibold">{myCrewEntry.crew_invited_boat_name || 'A boat'}</span> has invited you to join them for this race. Accept to hop aboard — you’ll be added to their boat and taken off the available-crew list.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={acceptCrewInvite}
+                disabled={crewBusyId === myCrewEntry.id}
+                className="rounded-lg bg-green-600 hover:bg-green-700 text-white px-4 py-2 text-sm font-semibold disabled:opacity-50"
+              >
+                {crewBusyId === myCrewEntry.id ? 'Joining…' : '✅ Accept & join boat'}
+              </button>
+              <button
+                onClick={declineCrewInvite}
+                disabled={crewBusyId === myCrewEntry.id}
+                className="rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 text-sm font-medium disabled:opacity-50"
+              >
+                Decline
+              </button>
+            </div>
+          </Card>
+        )}
+
         {/* Crew available — people who volunteered to crew (no boat) */}
         {crewAvailable.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle>🙋 Crew available ({crewAvailable.length})</CardTitle>
             </CardHeader>
-            <p className="text-sm text-gray-500 mb-3">These sailors are looking for a boat — helms, grab a hand.</p>
+            <p className="text-sm text-gray-500 mb-3">
+              {myBoatEntry
+                ? 'These sailors are looking for a boat — invite one to join yours.'
+                : 'These sailors are looking for a boat — helms, grab a hand.'}
+            </p>
             <ul className="divide-y divide-gray-100">
-              {crewAvailable.map((cr) => (
-                <li key={cr.id} className="flex items-center justify-between gap-3 py-2.5">
-                  <span className="text-sm font-medium text-gray-900">{cr.helm_name}</span>
-                  {cr.phone ? (
-                    <a href={`tel:${cr.phone}`} className="shrink-0 text-xs rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 font-medium">
-                      📞 {cr.phone}
-                    </a>
-                  ) : (
-                    <span className="shrink-0 text-xs text-gray-400">No contact given</span>
-                  )}
-                </li>
-              ))}
+              {crewAvailable.map((cr) => {
+                const invitedByMe = myBoatEntry && cr.crew_invited_by === myBoatEntry.id && cr.crew_invite_status === 'pending'
+                const invitedByOther = cr.crew_invite_status === 'pending' && !invitedByMe
+                return (
+                  <li key={cr.id} className="flex items-center justify-between gap-3 py-2.5">
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium text-gray-900">{cr.helm_name}</span>
+                      {invitedByMe && <span className="ml-2 text-xs text-amber-600">• invite sent, awaiting reply</span>}
+                      {invitedByOther && <span className="ml-2 text-xs text-gray-400">• invited by another boat</span>}
+                    </div>
+                    <div className="shrink-0 flex items-center gap-2">
+                      {myBoatEntry ? (
+                        invitedByMe ? (
+                          <button
+                            onClick={() => cancelCrewInvite(cr.id)}
+                            disabled={crewBusyId === cr.id}
+                            className="text-xs rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 font-medium disabled:opacity-50"
+                          >
+                            {crewBusyId === cr.id ? '…' : 'Cancel invite'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => inviteCrew(cr.id)}
+                            disabled={crewBusyId === cr.id}
+                            className="text-xs rounded-lg bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 font-semibold disabled:opacity-50"
+                          >
+                            {crewBusyId === cr.id ? '…' : '➕ Invite to my boat'}
+                          </button>
+                        )
+                      ) : null}
+                      {cr.phone ? (
+                        <a href={`tel:${cr.phone}`} className="text-xs rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-1.5 font-medium">
+                          📞 {cr.phone}
+                        </a>
+                      ) : (
+                        <span className="text-xs text-gray-400">No contact</span>
+                      )}
+                    </div>
+                  </li>
+                )
+              })}
             </ul>
           </Card>
         )}
