@@ -13,13 +13,16 @@ interface ClubResult {
   name: string
 }
 
-type Step = 'welcome' | 'find-club'
+type Step = 'choose' | 'welcome' | 'find-club'
+type Intent = 'competitor' | 'admin'
 
 export default function OnboardingPage() {
   const router = useRouter()
   const { user } = useAuth()
 
-  const [step, setStep] = useState<Step>('welcome')
+  const [step, setStep] = useState<Step>('choose')
+  const [intent, setIntent] = useState<Intent>('competitor')
+  const [hasBoat, setHasBoat] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ClubResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -68,6 +71,19 @@ export default function OnboardingPage() {
     const timer = setTimeout(() => search(query), 300)
     return () => clearTimeout(timer)
   }, [query, search])
+
+  // Does the user already own a boat? (drives the 'add your boat' bullet)
+  useEffect(() => {
+    if (!user) return
+    ;(async () => {
+      const supabase = getBrowserClient()
+      const { count } = await supabase
+        .from('boats')
+        .select('id', { count: 'exact', head: true })
+        .eq('owner_id', user.id)
+      setHasBoat((count ?? 0) > 0)
+    })()
+  }, [user])
 
   async function handleJoin(clubId: string) {
     setError('')
@@ -161,24 +177,80 @@ export default function OnboardingPage() {
 
   const exactMatch = results.some(r => r.name.toLowerCase() === query.trim().toLowerCase())
 
-  // ===== STEP 0: Welcome intro (club onboarding). The full “what this does”
-  // tutorial is a separate dashboard overlay (IntroTour) shown until hidden. =====
-  if (step === 'welcome') {
+  // ===== STEP 0: Choose how you'll use it (competitor vs race admin) =====
+  if (step === 'choose') {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-600 to-slate-900 flex items-center justify-center px-4">
+      <div className="min-h-screen bg-gradient-to-b from-blue-600 to-slate-900 flex items-center justify-center px-4 py-10">
         <div className="w-full max-w-md text-center text-white">
           <div className="flex items-center justify-center mb-4">
             <WaypointMark className="h-14 w-14 text-white" />
           </div>
           <h1 className="text-3xl font-bold">Welcome to Waypoint Racing</h1>
-          <p className="text-blue-100 mt-3">Live GPS race tracking, nav &amp; results — for your club.</p>
+          <p className="text-blue-100 mt-3">How will you use it?</p>
+
+          <div className="mt-8 space-y-3">
+            <button
+              onClick={() => { setIntent('competitor'); setStep('welcome') }}
+              className="w-full text-left rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 px-5 py-4 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">🏁</span>
+                <div>
+                  <p className="font-semibold">I want to race</p>
+                  <p className="text-sm text-blue-100">Join your club, enter races and sail with your phone as the instrument.</p>
+                </div>
+              </div>
+            </button>
+            <button
+              onClick={() => { setIntent('admin'); setStep('welcome') }}
+              className="w-full text-left rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 px-5 py-4 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-3xl">🎛️</span>
+                <div>
+                  <p className="font-semibold">I run racing for my club</p>
+                  <p className="text-sm text-blue-100">Set up your club, build courses and run races as an admin.</p>
+                </div>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ===== STEP 1: Role-aware welcome. Full 'what this does' tutorial is the
+  // separate IntroTour dashboard overlay shown until hidden. =====
+  if (step === 'welcome') {
+    const competitorBullets: [string, string, string][] = [
+      ['🏁', 'Join your club', 'Find your club and you’re in — everything’s organised around it.'],
+      ...(!hasBoat ? [['⛵', 'Add your boat', 'So your results and tracks are yours.'] as [string, string, string]] : []),
+      ['📱', 'Enter & race', 'Enter in advance, then live nav, offline tracking and an auto-timed finish.'],
+    ]
+    const adminBullets: [string, string, string][] = [
+      ['🎢', 'Create your club', 'You’ll be the club admin — invite members and race officers.'],
+      ['📍', 'Marks & courses', 'Save your marks once, then build courses in seconds.'],
+      ['🏁', 'Run races', 'Start sequence, live standings, results — and you can race too.'],
+    ]
+    const bullets = intent === 'admin' ? adminBullets : competitorBullets
+    const heading = intent === 'admin' ? 'Set up racing for your club' : 'Get racing'
+    const cta = intent === 'admin' ? 'Create my club →' : 'Find my club →'
+
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-600 to-slate-900 flex items-center justify-center px-4 py-10">
+        <div className="w-full max-w-md text-center text-white">
+          <div className="flex items-center justify-center mb-4">
+            <WaypointMark className="h-14 w-14 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold">{heading}</h1>
+          <p className="text-blue-100 mt-3">
+            {intent === 'admin'
+              ? 'A few steps and your club is racing.'
+              : 'A couple of steps and you’re on the water.'}
+          </p>
 
           <div className="mt-8 space-y-3 text-left">
-            {[
-              ['🏁', 'Join or create your club', 'Everything is organised around your sailing club.'],
-              ['⛵', 'Add your boat', 'So your results and tracks are yours.'],
-              ['📱', 'Race with your phone', 'Live tracking, offline nav, and a finish line that times you.'],
-            ].map(([icon, title, body]) => (
+            {bullets.map(([icon, title, body]) => (
               <div key={title} className="flex items-start gap-3 bg-white/10 rounded-xl px-4 py-3">
                 <span className="text-2xl">{icon}</span>
                 <div>
@@ -193,7 +265,13 @@ export default function OnboardingPage() {
             onClick={() => setStep('find-club')}
             className="mt-8 w-full rounded-xl bg-white text-blue-700 font-semibold py-3 text-base hover:bg-blue-50 transition-colors"
           >
-            Get started →
+            {cta}
+          </button>
+          <button
+            onClick={() => setStep('choose')}
+            className="mt-3 text-sm text-white/60 hover:text-white transition-colors"
+          >
+            ← Back
           </button>
         </div>
       </div>
@@ -206,9 +284,13 @@ export default function OnboardingPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <span className="text-4xl">⛵</span>
-          <h1 className="text-2xl font-bold text-gray-900 mt-3">Join or create your sailing club</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mt-3">
+            {intent === 'admin' ? 'Create your sailing club' : 'Find your sailing club'}
+          </h1>
           <p className="text-sm text-gray-500 mt-1">
-            Start typing your club name to search
+            {intent === 'admin'
+              ? 'Type your club name — if it doesn’t exist yet, create it.'
+              : 'Start typing your club name to search, or use an invite code below.'}
           </p>
         </div>
 
