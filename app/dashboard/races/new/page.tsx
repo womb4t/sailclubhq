@@ -90,6 +90,9 @@ export default function NewRacePage() {
   const [vhfChannel, setVhfChannel] = useState('')
   const [safetyInfo, setSafetyInfo] = useState('')
   const [notes, setNotes] = useState('')
+  // OOD assignment at setup
+  const [members, setMembers] = useState<Array<{ id: string; full_name: string | null }>>([])
+  const [oodId, setOodId] = useState('') // '' = none, 'volunteer' = open, else user id
 
   // Start classes state
   const [startClasses, setStartClasses] = useState<StartClass[]>([])
@@ -139,6 +142,14 @@ export default function NewRacePage() {
       if (!profile?.club_id) return
       const cid = profile.club_id
       setClubId(cid)
+
+      // Club members for OOD assignment
+      const { data: mem } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('club_id', cid)
+        .order('full_name', { ascending: true })
+      if (mem) setMembers(mem as Array<{ id: string; full_name: string | null }>)
 
       // Club VHF default
       const { data: club } = await supabase
@@ -274,6 +285,8 @@ export default function NewRacePage() {
         notes: finalNotes || null,
         status: 'draft',
         course_template_id: selectedCourseId || null,
+        ood_id: oodId && oodId !== 'volunteer' ? oodId : null,
+        ood_open_for_volunteer: oodId === 'volunteer',
       })
       .select('id')
       .single()
@@ -601,6 +614,21 @@ export default function NewRacePage() {
               placeholder="M2"
               hint={clubDefaultVhf ? `Club default: ${clubDefaultVhf}` : 'Displayed to competitors'}
             />
+            <div>
+              <label className="text-sm font-medium text-gray-700">Officer of the Day</label>
+              <select
+                value={oodId}
+                onChange={(e) => setOodId(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="">Not assigned yet</option>
+                <option value="volunteer">Open for a volunteer</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>{m.full_name ?? 'Unnamed'}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-400">Assign now, leave open for a volunteer, or set it later from the Race Centre.</p>
+            </div>
             <div>
               <label className="text-sm font-medium text-gray-700">Safety information</label>
               <textarea
