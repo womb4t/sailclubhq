@@ -122,6 +122,16 @@ export default function RacesPage() {
     fetchRaces()
   }
 
+  const [publishingId, setPublishingId] = useState<string | null>(null)
+  async function publishRace(id: string) {
+    setPublishingId(id)
+    const supabase = getBrowserClient()
+    const { error } = await supabase.from('races').update({ status: 'planned' }).eq('id', id)
+    setPublishingId(null)
+    if (error) { alert('Could not publish: ' + error.message); return }
+    fetchRaces()
+  }
+
   // Series filter
   const allSeries = Array.from(new Set(races.filter(r => r.series).map(r => r.series!))).sort()
   const filtered = seriesFilter === 'all' ? races : races.filter(r => r.series === seriesFilter)
@@ -172,7 +182,19 @@ export default function RacesPage() {
             )}
           </Link>
           {isOfficer ? (
-            <div className="flex gap-1.5 flex-shrink-0">
+            <div className="flex flex-wrap gap-1.5 flex-shrink-0 justify-end">
+              {race.status === 'draft' && (
+                <Button
+                  size="sm"
+                  onClick={() => publishRace(race.id)}
+                  loading={publishingId === race.id}
+                >
+                  Publish
+                </Button>
+              )}
+              <Link href={`/race/centre/${race.entry_token}`}>
+                <Button variant="secondary" size="sm">Enter</Button>
+              </Link>
               <Link href={`/dashboard/races/${race.id}/edit`}>
                 <Button variant="ghost" size="sm">Edit</Button>
               </Link>

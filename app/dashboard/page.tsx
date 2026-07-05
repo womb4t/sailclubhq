@@ -43,6 +43,16 @@ export default function DashboardPage() {
   const [races, setRaces] = useState<Race[]>([])
   const [loading, setLoading] = useState(true)
   const [seriesFilter, setSeriesFilter] = useState<string>('all')
+  const [publishingId, setPublishingId] = useState<string | null>(null)
+
+  async function publishRace(id: string) {
+    setPublishingId(id)
+    const supabase = getBrowserClient()
+    const { error } = await supabase.from('races').update({ status: 'planned' }).eq('id', id)
+    setPublishingId(null)
+    if (error) { alert('Could not publish: ' + error.message); return }
+    setRaces((rs) => rs.map((r) => (r.id === id ? { ...r, status: 'planned' } : r)))
+  }
 
   useEffect(() => {
     if (!user) return
@@ -236,30 +246,38 @@ export default function DashboardPage() {
               const dateStr = raceDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 
               return (
-                <Link key={race.id} href={`/dashboard/races/${race.id}`}>
-                  <Card className="hover:border-blue-300 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="text-center shrink-0 w-12">
-                          <div className="text-[10px] text-gray-400 uppercase">{dayName}</div>
-                          <div className="text-sm font-bold text-gray-900">{dateStr}</div>
-                          {startTime && <div className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded mt-0.5">🏁 Start: {startTime}</div>}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{race.name}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            {race.series && (
-                              <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{race.series}</span>
-                            )}
-                          </div>
+                <Card key={race.id} className="hover:border-blue-300 transition-colors">
+                  <div className="flex items-center justify-between gap-2">
+                    <Link href={isOfficer ? `/dashboard/races/${race.id}` : `/race/centre/${race.entry_token}`} className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="text-center shrink-0 w-12">
+                        <div className="text-[10px] text-gray-400 uppercase">{dayName}</div>
+                        <div className="text-sm font-bold text-gray-900">{dateStr}</div>
+                        {startTime && <div className="text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded mt-0.5">🏁 Start: {startTime}</div>}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{race.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${statusStyle[race.status] ?? 'bg-gray-100 text-gray-600'}`}>
+                            {statusLabel[race.status] ?? race.status}
+                          </span>
+                          {race.series && (
+                            <span className="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">{race.series}</span>
+                          )}
                         </div>
                       </div>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0 ${statusStyle[race.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {statusLabel[race.status] ?? race.status}
-                      </span>
-                    </div>
-                  </Card>
-                </Link>
+                    </Link>
+                    {isOfficer && (
+                      <div className="flex flex-wrap gap-1.5 shrink-0 justify-end">
+                        {race.status === 'draft' && (
+                          <Button size="sm" onClick={() => publishRace(race.id)} loading={publishingId === race.id}>Publish</Button>
+                        )}
+                        <Link href={`/race/centre/${race.entry_token}`}>
+                          <Button variant="secondary" size="sm">Enter</Button>
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </Card>
               )
             })}
           </div>
