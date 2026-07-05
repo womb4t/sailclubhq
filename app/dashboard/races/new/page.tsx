@@ -76,6 +76,7 @@ export default function NewRacePage() {
   const [myRole, setMyRole] = useState<string>('member')
   const [officerCount, setOfficerCount] = useState(0)
   const [claiming, setClaiming] = useState(false)
+  const [requested, setRequested] = useState(false)
   const canManage = myRole === 'admin' || myRole === 'race_officer'
   const [clubDefaultVhf, setClubDefaultVhf] = useState('')
 
@@ -267,8 +268,19 @@ export default function NewRacePage() {
     if (data === 'claimed' || data === 'already-officer') {
       setMyRole('race_officer')
     } else if (data === 'officers-exist') {
-      setError('This club already has a race officer — ask a club admin to add you.')
+      setError('This club already has a race officer — request access below.')
     }
+  }
+
+  async function requestRaceOfficer() {
+    setClaiming(true)
+    const supabase = getBrowserClient()
+    const { data, error: e } = await supabase.rpc('request_race_officer')
+    setClaiming(false)
+    if (e) { setError('Could not send request: ' + e.message); return }
+    if (data === 'requested') { setRequested(true) }
+    else if (data === 'already-requested') { setRequested(true) }
+    else if (data === 'already-officer') { setMyRole('race_officer') }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -385,9 +397,19 @@ export default function NewRacePage() {
               <div className="text-4xl">🔒</div>
               <p className="text-base font-semibold text-gray-900">Race officers only</p>
               <p className="text-sm text-gray-500 max-w-sm mx-auto">
-                Only a club admin or race officer can set up races. Ask a club admin to make you a race officer.
+                Only a club admin or race officer can set up races. You can request race officer access — a club admin will approve it.
               </p>
-              <div className="pt-1">
+              {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+              <div className="pt-1 flex flex-col sm:flex-row gap-2 justify-center">
+                {requested ? (
+                  <span className="inline-flex items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 font-medium px-4 py-2.5 text-sm">
+                    ✅ Request sent — waiting for admin approval
+                  </span>
+                ) : (
+                  <Button size="lg" onClick={requestRaceOfficer} loading={claiming}>
+                    Request race officer access
+                  </Button>
+                )}
                 <Button variant="secondary" size="lg" onClick={() => router.push('/dashboard/races')}>
                   Back to races
                 </Button>

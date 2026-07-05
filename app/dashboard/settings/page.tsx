@@ -59,6 +59,9 @@ export default function SettingsPage() {
   const [deleteSeries, setDeleteSeries] = useState<SeriesData | null>(null)
   const [seriesError, setSeriesError] = useState('')
 
+  // Race officer requests (admin approves)
+  const [roRequests, setRoRequests] = useState<Array<{ id: string; user_id: string; name: string }>>([])
+
   useEffect(() => {
     if (!user) return
 
@@ -101,6 +104,19 @@ export default function SettingsPage() {
         .eq('club_id', profile.club_id)
         .order('name')
       setSeriesList((seriesData as SeriesData[]) ?? [])
+
+      // Pending race-officer requests (admins only see these via RLS)
+      if (profile.role === 'admin') {
+        const { data: reqs } = await supabase
+          .from('race_officer_requests')
+          .select('id, user_id')
+          .eq('club_id', profile.club_id)
+          .eq('status', 'pending')
+        if (reqs && reqs.length) {
+          const names = new Map((memberData ?? []).map((m: MemberData) => [m.id, m.full_name]))
+          setRoRequests(reqs.map((r) => ({ id: r.id, user_id: r.user_id, name: names.get(r.user_id) ?? 'A member' })))
+        }
+      }
 
       setLoading(false)
     }
@@ -153,6 +169,23 @@ export default function SettingsPage() {
       .eq('id', club.id)
     setNominateBusy(false)
     window.location.reload()
+  }
+
+  // ── Decide a race-officer request (admin only) ──────────────────────────
+  async function decideRequest(requestId: string, userId: string, approve: boolean) {
+    setNominateBusy(true)
+    const supabase = getBrowserClient()
+    const { data, error: e } = await supabase.rpc('decide_race_officer_request', { p_request: requestId, p_approve: approve })
+    setNominateBusy(false)
+    if (e) { alert('Could not process request: ' + e.message); return }
+    if (data === 'approved' || data === 'declined') {
+      setRoRequests((rs) => rs.filter((r) => r.id !== requestId))
+      if (data === 'approved') {
+        setMembers((ms) => ms.map((m) => (m.id === userId ? { ...m, role: 'race_officer' } : m)))
+      }
+    } else {
+      alert('Could not process request (' + data + ').')
+    }
   }
 
   // ── Race officer grant / revoke (admin only) ──────────────────────────────
@@ -513,6 +546,40 @@ export default function SettingsPage() {
             >
               Decline
             </button>
+          </div>
+        </Card>
+      )}
+
+      {/* Pending race-officer requests (admin) */}
+      {myRole === 'admin' && roRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Race officer requests ({roRequests.length})</CardTitle>
+          </CardHeader>
+          <div className="divide-y divide-gray-100">
+            {roRequests.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-3 py-2.5">
+                <p className="text-sm text-gray-900">
+                  <span className="font-medium">{r.name}</span> wants to be a race officer
+                </p>
+                <div className="flex gap-1.5 shrink-0">
+                  <button
+                    onClick={() => decideRequest(r.id, r.user_id, true)}
+                    disabled={nominateBusy}
+                    className="text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 font-medium disabled:opacity-50"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => decideRequest(r.id, r.user_id, false)}
+                    disabled={nominateBusy}
+                    className="text-xs rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 font-medium disabled:opacity-50"
+                  >
+                    Decline
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </Card>
       )}

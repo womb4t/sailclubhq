@@ -1,0 +1,13 @@
+const fs = require('fs')
+const path = require('path')
+const { Client } = require('pg')
+const env = fs.readFileSync(path.join(__dirname, '..', '.env.local'), 'utf8')
+const m = env.match(/^SUPABASE_DB_URL=(.+)$/m)
+const cs = m[1].trim().replace(/^["']|["']$/g, '')
+;(async () => {
+  const c = new Client({ connectionString: cs, ssl: { rejectUnauthorized: false } })
+  await c.connect()
+  console.log('races ood cols:', (await c.query("select column_name,data_type from information_schema.columns where table_name='races' and column_name like 'ood%' order by column_name")).rows)
+  console.log('clubs pending cols:', (await c.query("select column_name from information_schema.columns where table_name='clubs' and column_name like 'pending%'")).rows)
+  await c.end()
+})().catch((e) => { console.error(e.message); process.exit(1) })
