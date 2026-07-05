@@ -56,13 +56,18 @@ Uses:
   state (rising/falling, height now) shown for the race day.
 - **On-the-water nav** — bottom-sheet conditions panel (à la Savvy Navvy): TWD,
   point-of-sail, cross-tide, tidal set.
-- **True CTS** — enables a real **CTS (Course To Steer)** with tide/leeway
-  correction, vs the current honest **BTM (Bearing To Mark)**.
+- **Local currents** — tidal stream set (direction) + drift (rate) for the venue,
+  ideally per-area/per-leg. Drives tactics (which side of the beat pays) and is
+  the missing input for a true CTS. May vary across the course, not just one
+  value — stream atlases / local knowledge overlays later.
+- **True CTS** — enables a real **CTS (Course To Steer)** with tide/leeway +
+  current correction, vs the current honest **BTM (Bearing To Mark)**.
 - Tidal gates / stream awareness near marks (later).
 
-Needs: a marine weather forecast source + a tide data source (provider TBD; e.g.
-Open-Meteo marine, Admiralty/UKHO tides, StormGlass). Cache per venue/day.
-Consider cost + rate limits before wiring.
+Needs: a marine weather forecast source + tide + tidal-current source (provider
+TBD; e.g. Open-Meteo marine, Admiralty/UKHO tides & tidal streams, StormGlass).
+Currents may need per-area data or manual stream-atlas entry where forecasts are
+too coarse for a small race area. Cache per venue/day; weigh cost + rate limits.
 
 ---
 
