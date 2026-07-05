@@ -27,7 +27,7 @@ const RELATIONSHIPS = [
 ]
 
 export default function ProfilePage() {
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
   const [showIntro, setShowIntro] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -254,6 +254,19 @@ export default function ProfilePage() {
           </div>
           <Button type="button" variant="secondary" size="sm" onClick={() => setShowIntro(true)}>
             Show me
+          </Button>
+        </div>
+      </Card>
+
+      {/* Log out */}
+      <Card>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-gray-900">Log out</p>
+            <p className="text-xs text-gray-500 mt-0.5">Sign out of Waypoint Racing on this device.</p>
+          </div>
+          <Button type="button" variant="secondary" size="sm" onClick={() => signOut()} className="shrink-0">
+            Log out
           </Button>
         </div>
       </Card>

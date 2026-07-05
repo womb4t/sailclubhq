@@ -31,7 +31,7 @@ function isActive(pathname: string, href: string): boolean {
 
 export function DashboardNav({ mobile = false }: { mobile?: boolean }) {
   const pathname = usePathname()
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
   const [isOfficer, setIsOfficer] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -72,25 +72,34 @@ export function DashboardNav({ mobile = false }: { mobile?: boolean }) {
   }
 
   return (
-    <nav className="flex-1 px-3 py-4 space-y-1">
-      {items.map((item) => {
-        const active = isActive(pathname, item.href)
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={[
-              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
-              active
-                ? 'bg-blue-800 text-white font-medium'
-                : 'text-blue-200 hover:bg-blue-800/50 hover:text-white',
-            ].join(' ')}
-          >
-            <span>{item.icon}</span>
-            <span>{item.label}</span>
-          </Link>
-        )
-      })}
+    <nav className="flex-1 flex flex-col px-3 py-4">
+      <div className="space-y-1">
+        {items.map((item) => {
+          const active = isActive(pathname, item.href)
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={[
+                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
+                active
+                  ? 'bg-blue-800 text-white font-medium'
+                  : 'text-blue-200 hover:bg-blue-800/50 hover:text-white',
+              ].join(' ')}
+            >
+              <span>{item.icon}</span>
+              <span>{item.label}</span>
+            </Link>
+          )
+        })}
+      </div>
+      <button
+        onClick={() => signOut()}
+        className="mt-auto flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-200 hover:bg-blue-800/50 hover:text-white transition-colors text-left"
+      >
+        <span>🚪</span>
+        <span>Log out</span>
+      </button>
     </nav>
   )
 }
