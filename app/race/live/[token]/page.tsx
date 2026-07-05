@@ -21,6 +21,10 @@ import type { RaceMapProps, RaceMapMark } from '@/components/map/RaceMap'
 // Dynamically import to avoid SSR issues with Leaflet
 const RaceMap = dynamic(() => import('@/components/map/RaceMap'), { ssr: false })
 
+// Mark-rounding zone: ~25 m wide (a 12.5 m radius circle around the mark).
+// 1 nautical mile = 1852 m, so 12.5 m = 0.00675 nm.
+const MARK_ROUNDING_NM = 12.5 / 1852
+
 // ── Geo maths ─────────────────────────────────────────────────────────────────
 
 function haversineNm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -225,6 +229,9 @@ export default function LiveRacePage() {
   // Race progress state
   const [nextMarkIndex, setNextMarkIndex] = useState(0)
   const [currentLap, setCurrentLap] = useState(1)
+  // Transient "mark reached" announcement so the helm can aim for the next mark.
+  const [markReached, setMarkReached] = useState<{ reached: string; next: string | null } | null>(null)
+  const markReachedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [finished, setFinished] = useState(false)
   const [finishTime, setFinishTime] = useState<string | null>(null)
   const [elapsedSeconds, setElapsedSeconds] = useState<number | null>(null)
@@ -256,6 +263,7 @@ export default function LiveRacePage() {
   // Sync refs with state
   useEffect(() => { courseRef.current = course }, [course])
   useEffect(() => { nextMarkIndexRef.current = nextMarkIndex }, [nextMarkIndex])
+  useEffect(() => () => { if (markReachedTimerRef.current) clearTimeout(markReachedTimerRef.current) }, [])
   useEffect(() => { currentLapRef.current = currentLap }, [currentLap])
   useEffect(() => { finishedRef.current = finished }, [finished])
   useEffect(() => { ocsRef.current = ocs }, [ocs])
@@ -639,19 +647,33 @@ export default function LiveRacePage() {
       const nextMark = marks[nmi]
       const dist = haversineNm(pos.lat, pos.lon, nextMark.lat, nextMark.lon)
 
-      if (dist < 0.016) {
+      if (dist < MARK_ROUNDING_NM) {
         if (typeof navigator.vibrate === 'function') navigator.vibrate([100, 50, 100])
 
         const isLastMark = nmi === marks.length - 1
+        let newIndex: number
 
         if (isLastMark && lap < totalLaps) {
           setCurrentLap(prev => prev + 1)
+          newIndex = 0
           setNextMarkIndex(0)
         } else if (isLastMark && lap >= totalLaps) {
-          setNextMarkIndex(marks.length) // targeting finish
+          newIndex = marks.length // targeting finish
+          setNextMarkIndex(marks.length)
         } else {
+          newIndex = nmi + 1
           setNextMarkIndex(prev => prev + 1)
         }
+
+        // Announce: which mark was reached + the next one to aim for.
+        const reachedName = nextMark.name || `Mark ${nmi + 1}`
+        const upcoming =
+          newIndex < marks.length
+            ? marks[newIndex].name || `Mark ${newIndex + 1}`
+            : 'Finish'
+        setMarkReached({ reached: reachedName, next: upcoming })
+        if (markReachedTimerRef.current) clearTimeout(markReachedTimerRef.current)
+        markReachedTimerRef.current = setTimeout(() => setMarkReached(null), 6000)
       }
     }
 
@@ -1050,6 +1072,18 @@ export default function LiveRacePage() {
             <span className={`text-xs ml-1.5 font-medium ${nextMark.roundingSide === 'port' ? 'text-red-400' : 'text-green-400'}`}>
               {nextMark.roundingSide === 'port' ? '● Port' : '● Stbd'}
             </span>
+          </div>
+        )}
+
+        {/* Mark-reached flash — confirms rounding + points to the next mark */}
+        {markReached && !finished && (
+          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1500] pointer-events-none">
+            <div className="bg-green-500 text-slate-900 rounded-xl px-4 py-2.5 shadow-2xl text-center border-2 border-green-300">
+              <div className="text-sm font-extrabold uppercase tracking-wide">✅ Reached {markReached.reached}</div>
+              {markReached.next && (
+                <div className="text-xs font-semibold mt-0.5">→ Now head for {markReached.next}</div>
+              )}
+            </div>
           </div>
         )}
 

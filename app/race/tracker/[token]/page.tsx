@@ -67,6 +67,10 @@ interface EntryData {
   laps_completed: number
 }
 
+// Mark-rounding zone: ~25 m wide (a 12.5 m radius circle around the mark).
+// 1 nautical mile = 1852 m, so 12.5 m = 0.00675 nm.
+const MARK_ROUNDING_NM = 12.5 / 1852
+
 // ── Geometry (self-contained; nm distance + segment intersection) ──────────────
 function haversineNm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 3440.065 // nautical miles
@@ -134,6 +138,9 @@ export default function TrackerPage() {
   const [finished, setFinished] = useState(false)
   const [finishTime, setFinishTime] = useState<string | null>(null)
   const [countdown, setCountdown] = useState<string | null>(null)
+  // Transient "mark reached" announcement so the helm can aim for the next mark.
+  const [markReached, setMarkReached] = useState<{ reached: string; next: string | null } | null>(null)
+  const markReachedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Refs for the GPS closure (avoid stale state)
   const courseRef = useRef<CourseData | null>(null)
@@ -155,6 +162,7 @@ export default function TrackerPage() {
   useEffect(() => { entryRef.current = entry }, [entry])
   useEffect(() => { startClassesRef.current = startClasses }, [startClasses])
   useEffect(() => { finishedRef.current = finished }, [finished])
+  useEffect(() => () => { if (markReachedTimerRef.current) clearTimeout(markReachedTimerRef.current) }, [])
 
   // ── Identity gate ──────────────────────────────────────────────────────────
   // Logged-in members are fine. Anonymous devices need a participant id (set by
@@ -339,11 +347,11 @@ export default function TrackerPage() {
     const nmi = nextMarkIndexRef.current
     const lap = currentLapRef.current
 
-    // Advance through marks silently (buzz on rounding).
+    // Advance through marks (buzz + announce on rounding).
     if (nmi < marks.length) {
       const nextMark = marks[nmi]
       const dist = haversineNm(lat, lon, nextMark.lat, nextMark.lon)
-      if (dist < 0.016) {
+      if (dist < MARK_ROUNDING_NM) {
         if (typeof navigator.vibrate === 'function') navigator.vibrate([100, 50, 100])
         const isLast = nmi === marks.length - 1
         if (isLast && lap < c.laps) {
@@ -354,6 +362,15 @@ export default function TrackerPage() {
         } else {
           nextMarkIndexRef.current = nmi + 1
         }
+        // Announce: which mark was reached + the next one to aim for.
+        const reachedName = nextMark.name || `Mark ${nmi + 1}`
+        const upcoming =
+          nextMarkIndexRef.current < marks.length
+            ? marks[nextMarkIndexRef.current].name || `Mark ${nextMarkIndexRef.current + 1}`
+            : 'Finish'
+        setMarkReached({ reached: reachedName, next: upcoming })
+        if (markReachedTimerRef.current) clearTimeout(markReachedTimerRef.current)
+        markReachedTimerRef.current = setTimeout(() => setMarkReached(null), 6000)
         // Persist progress for live standings (not in training mode).
         const e = entryRef.current
         if (e && !simModeRef.current && navigator.onLine) {
@@ -598,6 +615,16 @@ export default function TrackerPage() {
       {!isSim && !isOnline && (
         <div className="bg-amber-500 text-slate-900 text-center text-sm font-semibold py-2 px-3">
           📡 Offline — {unsyncedCount} position{unsyncedCount === 1 ? '' : 's'} queued, will sync when connected
+        </div>
+      )}
+
+      {/* Mark-reached announcement */}
+      {markReached && !finished && (
+        <div className="bg-green-500 text-slate-900 text-center py-3 px-3 shadow-lg">
+          <div className="text-base font-extrabold uppercase tracking-wide">✅ Reached {markReached.reached}</div>
+          {markReached.next && (
+            <div className="text-sm font-semibold mt-0.5">→ Now head for {markReached.next}</div>
+          )}
         </div>
       )}
 
