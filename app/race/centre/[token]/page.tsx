@@ -153,6 +153,7 @@ export default function RaceCentrePage() {
   const [myName, setMyName] = useState<string>('')
   // Fleet (entries) + organiser remove.
   const [entries, setEntries] = useState<Array<{ id: string; boat_name: string | null; helm_name: string | null; status: string }>>([])
+  const [myEntry, setMyEntry] = useState<{ id: string; boat_name: string | null; status: string } | null>(null)
   const [removingId, setRemovingId] = useState<string | null>(null)
   // Roles + OOD
   const [isAdmin, setIsAdmin] = useState(false)
@@ -274,6 +275,20 @@ export default function RaceCentrePage() {
         .eq('race_id', raceData.id)
         .order('created_at', { ascending: true })
       if (ents) setEntries(ents as typeof entries)
+
+      // Am I entered? (drives the advance-entry card)
+      if (user) {
+        const { data: mine } = await supabase
+          .from('race_entries')
+          .select('id, boat_name, status')
+          .eq('race_id', raceData.id)
+          .eq('user_id', user.id)
+          .neq('status', 'withdrawn')
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle()
+        setMyEntry((mine as { id: string; boat_name: string | null; status: string } | null) ?? null)
+      }
 
       // OOD name (if assigned).
       if ((raceData as RaceData).ood_id) {
@@ -507,6 +522,41 @@ export default function RaceCentrePage() {
             {race.series && <> · {race.series}{race.race_number ? ` — Race ${race.race_number}` : ''}</>}
           </p>
         </div>
+
+        {/* Advance entry — declare you're racing before the day */}
+        {race.status !== 'completed' && (
+          <Card padding="lg">
+            {myEntry ? (
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-700">✅ You’re entered</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {myEntry.boat_name ? `Boat: ${myEntry.boat_name}` : 'Entry confirmed'} · you can change or withdraw any time before the start.
+                  </p>
+                </div>
+                <Link
+                  href={`/race/join/${race.entry_token}`}
+                  className="shrink-0 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-4 py-2 text-sm"
+                >
+                  Manage entry
+                </Link>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">Racing this one?</p>
+                  <p className="text-xs text-gray-500 mt-0.5">Enter now so the club knows you’re coming — you can withdraw later.</p>
+                </div>
+                <Link
+                  href={`/race/join/${race.entry_token}`}
+                  className="shrink-0 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2.5 text-sm"
+                >
+                  Enter this race →
+                </Link>
+              </div>
+            )}
+          </Card>
+        )}
 
         {/* Race Nav + Tracker */}
         <Card padding="lg">
