@@ -123,9 +123,41 @@ function RegisterForm() {
       }
     }
 
+    // Claim any anonymous race entry made on this device (from /race/go) so the
+    // racer keeps the result they already sailed under a device participant_id.
+    if (raceToken) {
+      try {
+        const participantId =
+          typeof window !== 'undefined' ? localStorage.getItem('scq-participant-id') : null
+        if (participantId) {
+          const { data: race } = await supabase
+            .from('races')
+            .select('id')
+            .eq('entry_token', raceToken)
+            .maybeSingle()
+          if (race) {
+            // Reassign the device's anonymous entry to this account.
+            await supabase
+              .from('race_entries')
+              .update({ user_id: user.id, participant_id: null })
+              .eq('race_id', race.id)
+              .eq('participant_id', participantId)
+            // Re-point any queued/synced positions to the account too.
+            await supabase
+              .from('live_positions')
+              .update({ user_id: user.id, participant_id: null })
+              .eq('race_id', race.id)
+              .eq('participant_id', participantId)
+          }
+        }
+      } catch {
+        /* best-effort claim; never block registration */
+      }
+    }
+
     setLoading(false)
-    // Redirect
-    window.location.href = raceToken ? `/race/join/${raceToken}` : joinCode ? `/join/${joinCode}` : '/dashboard'
+    // Redirect — straight to the race centre when they came from a race link.
+    window.location.href = raceToken ? `/race/centre/${raceToken}` : joinCode ? `/join/${joinCode}` : '/dashboard'
   }
 
   if (step === 'details') {
