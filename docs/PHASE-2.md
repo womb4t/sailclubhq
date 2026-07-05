@@ -53,7 +53,34 @@ Impact: touches almost every query + all role logic. Do it as its own project.
 
 ---
 
-## 5. Replayable intro / help centre ⚪
+## 5. Standardised courses + inter-club competition 🟡
+**Shared, standardised courses so clubs can compete against each other.**
+
+Today: courses are club-owned (marks + legs scoped to one club).
+
+Target:
+- **Standardised course templates** — canonical course definitions (shape, leg
+  ratios, mark layout) that any club can adopt, independent of their local GPS
+  marks. Think "Olympic triangle", "windward-leeward 2 laps", or a named
+  class/association standard.
+- A club instantiates a standard course against **their own marks/water**, but
+  results are comparable because the course *shape/standard* is the same.
+- **Cross-club leaderboards** — compare performance on the same standardised
+  course across clubs (by class, by corrected time, by fleet).
+- Governance/ownership of standards: a global/curated library vs club-published
+  standards; versioning so a standard can’t silently change under a result set.
+- Ties into corrected-time (#2) and series scoring (#3) for fair comparison.
+
+Why it matters: inter-club competition is a network-effect lever — gives clubs a
+reason to pull each other onto the platform.
+
+Open questions: how to normalise for local conditions (wind/tide differ by venue)
+when comparing across clubs; whether comparison is "same course shape" only, or
+true handicap-normalised ranking.
+
+---
+
+## 6. Replayable intro / help centre ⚪
 - The intro tutorial is replayable from Profile ("How it works"). Consider a
   fuller in-app help/FAQ surface for participants and officers.
 
