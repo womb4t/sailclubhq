@@ -13,6 +13,8 @@ interface ClubData {
   vhf_channel: string | null
   invite_code: string | null
   archive_after_months: number | null
+  pending_admin_nominee: string | null
+  pending_admin_nominated_by: string | null
 }
 
 interface MemberData {
@@ -33,6 +35,8 @@ export default function SettingsPage() {
   const { user } = useAuth()
   const [club, setClub] = useState<ClubData | null>(null)
   const [members, setMembers] = useState<MemberData[]>([])
+  const [myRole, setMyRole] = useState<string>('member')
+  const [nominateBusy, setNominateBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -67,11 +71,12 @@ export default function SettingsPage() {
         .maybeSingle()
 
       if (!profile?.club_id) { setLoading(false); return }
+      setMyRole(profile.role ?? 'member')
 
       const [{ data: clubData }, { data: memberData }] = await Promise.all([
         supabase
           .from('clubs')
-          .select('id, name, vhf_channel, invite_code, archive_after_months')
+          .select('id, name, vhf_channel, invite_code, archive_after_months, pending_admin_nominee, pending_admin_nominated_by')
           .eq('id', profile.club_id)
           .single(),
         supabase
@@ -102,6 +107,53 @@ export default function SettingsPage() {
 
     fetchData()
   }, [user])
+
+  // ── Admin handover (single admin; nominee must accept) ────────────────────────
+  async function nominateAdmin(memberId: string) {
+    if (!club || !user) return
+    if (!confirm('Nominate this member as the new club admin? They must accept, and you will become a member.')) return
+    setNominateBusy(true)
+    const supabase = getBrowserClient()
+    const { error: e } = await supabase
+      .from('clubs')
+      .update({
+        pending_admin_nominee: memberId,
+        pending_admin_nominated_by: user.id,
+        pending_admin_nominated_at: new Date().toISOString(),
+      })
+      .eq('id', club.id)
+    if (!e) setClub({ ...club, pending_admin_nominee: memberId, pending_admin_nominated_by: user.id })
+    setNominateBusy(false)
+  }
+
+  async function cancelNomination() {
+    if (!club) return
+    setNominateBusy(true)
+    const supabase = getBrowserClient()
+    await supabase
+      .from('clubs')
+      .update({ pending_admin_nominee: null, pending_admin_nominated_by: null, pending_admin_nominated_at: null })
+      .eq('id', club.id)
+    setClub({ ...club, pending_admin_nominee: null, pending_admin_nominated_by: null })
+    setNominateBusy(false)
+  }
+
+  async function respondToNomination(accept: boolean) {
+    if (!club || !user) return
+    setNominateBusy(true)
+    const supabase = getBrowserClient()
+    if (accept && club.pending_admin_nominated_by) {
+      // Full handover: nominee -> admin, previous admin -> member. Single admin.
+      await supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id)
+      await supabase.from('profiles').update({ role: 'member' }).eq('id', club.pending_admin_nominated_by)
+    }
+    await supabase
+      .from('clubs')
+      .update({ pending_admin_nominee: null, pending_admin_nominated_by: null, pending_admin_nominated_at: null })
+      .eq('id', club.id)
+    setNominateBusy(false)
+    window.location.reload()
+  }
 
   async function handleAddSeries() {
     if (!club || !newSeriesName.trim()) return
@@ -201,9 +253,7 @@ export default function SettingsPage() {
 
   const roleLabels: Record<string, string> = {
     admin: '👑 Admin',
-    race_officer: '🏁 Race Officer',
-    ood: '📋 OOD',
-    competitor: '⛵ Competitor',
+    member: '⛵ Member',
   }
 
   if (loading) {
@@ -411,18 +461,69 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {/* Pending admin nomination — shown to the nominee */}
+      {club?.pending_admin_nominee === user?.id && (
+        <Card className="border-2 border-amber-300 bg-amber-50">
+          <p className="text-sm font-semibold text-amber-900">👑 You&apos;ve been nominated as club admin</p>
+          <p className="text-xs text-amber-800 mt-1">
+            If you accept, you become the club admin and the current admin becomes a member.
+          </p>
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => respondToNomination(true)}
+              disabled={nominateBusy}
+              className="rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 disabled:opacity-50"
+            >
+              Accept
+            </button>
+            <button
+              onClick={() => respondToNomination(false)}
+              disabled={nominateBusy}
+              className="rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium px-4 py-2 disabled:opacity-50"
+            >
+              Decline
+            </button>
+          </div>
+        </Card>
+      )}
+
       {/* Members */}
       <Card>
         <CardHeader>
           <CardTitle>Members ({members.length})</CardTitle>
         </CardHeader>
+        {myRole === 'admin' && club?.pending_admin_nominee && (
+          <div className="mb-3 flex items-center justify-between gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
+            <p className="text-xs text-amber-800">
+              Admin nomination pending: {members.find((m) => m.id === club.pending_admin_nominee)?.full_name ?? 'a member'} must accept.
+            </p>
+            <button
+              onClick={cancelNomination}
+              disabled={nominateBusy}
+              className="text-xs rounded-lg bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 px-2.5 py-1 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
         <div className="space-y-2">
           {members.map((m) => (
             <div key={m.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
               <div>
                 <p className="text-sm font-medium text-gray-900">{m.full_name ?? 'Unnamed'}</p>
               </div>
-              <span className="text-xs text-gray-500">{roleLabels[m.role] ?? m.role}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-500">{roleLabels[m.role] ?? m.role}</span>
+                {myRole === 'admin' && m.id !== user?.id && m.role !== 'admin' && !club?.pending_admin_nominee && (
+                  <button
+                    onClick={() => nominateAdmin(m.id)}
+                    disabled={nominateBusy}
+                    className="text-xs rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 px-2.5 py-1 font-medium disabled:opacity-50"
+                  >
+                    Make admin
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
