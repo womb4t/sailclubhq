@@ -1110,7 +1110,7 @@ export default function LiveRacePage() {
               <p className="text-xs text-green-500">✓ Result submitted</p>
               <div className="flex flex-col gap-2 mt-4">
                 <Link
-                  href={`/race/viewer/${token}`}
+                  href={`/race/results/${token}`}
                   className="block px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm"
                 >
                   🏆 View results
