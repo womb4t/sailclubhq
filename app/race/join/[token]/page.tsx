@@ -165,11 +165,14 @@ export default function RaceJoinPage() {
       const incomplete = !prof.profile_complete || !prof.emergency_contact_name || !prof.emergency_contact_phone
       if (incomplete) { setStep('profile-incomplete'); return }
 
+      // Show ALL the user's boats (they own them); don't hard-filter by this
+      // race's club_id — a boat added under a slightly different club state
+      // should still be selectable. RLS still scopes to readable rows.
       const { data: boats } = await supabase
         .from('boats')
         .select('*')
         .eq('owner_id', user!.id)
-        .eq('club_id', race!.club!.id)
+        .order('created_at', { ascending: true })
 
       if (boats) {
         setUserBoats(boats as Boat[])
