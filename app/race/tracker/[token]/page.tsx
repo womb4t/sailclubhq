@@ -621,6 +621,19 @@ export default function TrackerPage() {
                 {new Date(finishTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
               </div>
             )}
+            {/* Register nudge — anonymous racers only */}
+            {!user && (
+              <div className="mt-6 rounded-xl bg-white/10 px-5 py-4 max-w-xs">
+                <p className="text-sm font-semibold">Want to keep your results?</p>
+                <p className="text-xs opacity-70 mt-1">Register with your boat to get detailed results, your track, and race history.</p>
+                <a
+                  href={`/register?race=${token}`}
+                  className="inline-block mt-3 rounded-lg bg-white text-slate-900 font-semibold px-4 py-2 text-sm"
+                >
+                  Register &amp; save my results
+                </a>
+              </div>
+            )}
           </div>
         ) : (
           <>
