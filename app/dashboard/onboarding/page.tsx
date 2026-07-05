@@ -15,41 +15,11 @@ interface ClubResult {
 
 type Step = 'welcome' | 'find-club'
 
-// Intro/tutorial slides shown to every new user before club selection.
-const TOUR_SLIDES: { icon: string; title: string; body: string }[] = [
-  {
-    icon: '🗺️',
-    title: 'Waypoint Racing, in a nutshell',
-    body: 'A live GPS race platform for your sailing club. Set courses from marks, run the start sequence, race with your phone as the instrument, and get automatic results — no stopwatch, no paperwork.',
-  },
-  {
-    icon: '📍',
-    title: 'Marks & courses',
-    body: 'Save your club’s marks once (real buoys or virtual GPS points). Then build a course in seconds — tap marks in order, set rounding side and laps. Windward-leeward, triangles, sausages, all of it.',
-  },
-  {
-    icon: '⏱️',
-    title: 'A proper start sequence',
-    body: 'The OOD runs a synced countdown with warning, prep and start signals — beeps and all. Cross early and it flags you OCS, so everyone starts fair.',
-  },
-  {
-    icon: '🧭',
-    title: 'Your phone is the nav',
-    body: 'Live map with your position, heading and trail. A clear header shows Bearing To Mark, speed, distance and time to go. It tells you the moment you’ve reached a mark so you can turn for the next — and it works offline.',
-  },
-  {
-    icon: '🏁',
-    title: 'Finish & results',
-    body: 'Sail through the finish line and you’re timed automatically. Results build themselves into a live table — your club, and spectators ashore, can follow the whole fleet in real time.',
-  },
-]
-
 export default function OnboardingPage() {
   const router = useRouter()
   const { user } = useAuth()
 
   const [step, setStep] = useState<Step>('welcome')
-  const [slide, setSlide] = useState(0)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ClubResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -191,63 +161,40 @@ export default function OnboardingPage() {
 
   const exactMatch = results.some(r => r.name.toLowerCase() === query.trim().toLowerCase())
 
-  // ===== STEP 0: Welcome / tutorial =====
+  // ===== STEP 0: Welcome intro (club onboarding). The full “what this does”
+  // tutorial is a separate dashboard overlay (IntroTour) shown until hidden. =====
   if (step === 'welcome') {
-    const s = TOUR_SLIDES[slide]
-    const isFirst = slide === 0
-    const isLast = slide === TOUR_SLIDES.length - 1
-    const next = () => (isLast ? setStep('find-club') : setSlide((n) => n + 1))
-    const back = () => setSlide((n) => Math.max(0, n - 1))
-
     return (
-      <div className="min-h-screen bg-gradient-to-b from-blue-600 to-slate-900 flex flex-col items-center justify-center px-4 py-10">
-        <div className="w-full max-w-md text-center text-white flex flex-col" style={{ minHeight: 520 }}>
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <WaypointMark className="h-7 w-7 text-white" />
-            <span className="font-bold tracking-wide">WAYPOINT RACING</span>
+      <div className="min-h-screen bg-gradient-to-b from-blue-600 to-slate-900 flex items-center justify-center px-4">
+        <div className="w-full max-w-md text-center text-white">
+          <div className="flex items-center justify-center mb-4">
+            <WaypointMark className="h-14 w-14 text-white" />
           </div>
+          <h1 className="text-3xl font-bold">Welcome to Waypoint Racing</h1>
+          <p className="text-blue-100 mt-3">Live GPS race tracking, nav &amp; results — for your club.</p>
 
-          {/* Slide */}
-          <div className="flex-1 flex flex-col items-center justify-center">
-            <div className="text-6xl mb-5">{s.icon}</div>
-            <h1 className="text-2xl font-bold">{s.title}</h1>
-            <p className="text-blue-100 mt-3 text-base leading-relaxed max-w-sm">{s.body}</p>
-          </div>
-
-          {/* Progress dots */}
-          <div className="flex items-center justify-center gap-2 mt-6">
-            {TOUR_SLIDES.map((_, i) => (
-              <span
-                key={i}
-                className={`h-2 rounded-full transition-all ${i === slide ? 'w-6 bg-white' : 'w-2 bg-white/30'}`}
-              />
+          <div className="mt-8 space-y-3 text-left">
+            {[
+              ['🏁', 'Join or create your club', 'Everything is organised around your sailing club.'],
+              ['⛵', 'Add your boat', 'So your results and tracks are yours.'],
+              ['📱', 'Race with your phone', 'Live tracking, offline nav, and a finish line that times you.'],
+            ].map(([icon, title, body]) => (
+              <div key={title} className="flex items-start gap-3 bg-white/10 rounded-xl px-4 py-3">
+                <span className="text-2xl">{icon}</span>
+                <div>
+                  <p className="font-semibold">{title}</p>
+                  <p className="text-sm text-blue-100">{body}</p>
+                </div>
+              </div>
             ))}
           </div>
 
-          {/* Controls */}
-          <div className="mt-6 flex items-center gap-3">
-            {!isFirst ? (
-              <button
-                onClick={back}
-                className="rounded-xl border border-white/30 text-white/90 font-medium py-3 px-5 hover:bg-white/10 transition-colors"
-              >
-                Back
-              </button>
-            ) : (
-              <button
-                onClick={() => setStep('find-club')}
-                className="rounded-xl text-white/70 font-medium py-3 px-4 hover:text-white transition-colors"
-              >
-                Skip
-              </button>
-            )}
-            <button
-              onClick={next}
-              className="flex-1 rounded-xl bg-white text-blue-700 font-semibold py-3 text-base hover:bg-blue-50 transition-colors"
-            >
-              {isLast ? 'Get started →' : 'Next'}
-            </button>
-          </div>
+          <button
+            onClick={() => setStep('find-club')}
+            className="mt-8 w-full rounded-xl bg-white text-blue-700 font-semibold py-3 text-base hover:bg-blue-50 transition-colors"
+          >
+            Get started →
+          </button>
         </div>
       </div>
     )

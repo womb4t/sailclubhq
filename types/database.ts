@@ -31,6 +31,7 @@ export interface Profile {
   rya_number: string | null
   experience_level: string | null
   profile_complete: boolean
+  hide_intro: boolean
   created_at: string
 }
 

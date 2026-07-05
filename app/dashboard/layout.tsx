@@ -2,10 +2,12 @@ import { AuthGuard } from '@/components/AuthGuard'
 import { DashboardNav } from './DashboardNav'
 import { WaypointMark } from '@/components/WaypointMark'
 import { WaypointFooter } from '@/components/WaypointFooter'
+import { IntroTourGate } from '@/components/IntroTourGate'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
+      <IntroTourGate />
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <header className="lg:hidden bg-blue-950 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-50">
           <div className="flex items-center gap-2">
