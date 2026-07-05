@@ -63,6 +63,16 @@ export default function RaceGoPage() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  // First-time intro (shown once per device).
+  const [showIntro, setShowIntro] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return !localStorage.getItem('scq-seen-race-intro')
+  })
+  function dismissIntro() {
+    if (typeof window !== 'undefined') localStorage.setItem('scq-seen-race-intro', '1')
+    setShowIntro(false)
+  }
+
   // Form pre-filled from the URL — the "smarts in the link". Seed lazily from
   // query params so there's no synchronous setState in an effect.
   const [boatName, setBoatName] = useState(() => searchParams.get('boat') ?? '')
@@ -218,6 +228,40 @@ export default function RaceGoPage() {
   }
 
   const joinable = race && ['planned', 'confirmed', 'live'].includes(race.status)
+
+  if (showIntro) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-600 to-slate-900 flex items-center justify-center px-4">
+        <div className="w-full max-w-md text-center text-white">
+          <div className="text-5xl mb-4">📱</div>
+          <h1 className="text-2xl font-bold">You’re about to go racing</h1>
+          <p className="text-blue-100 mt-2">Here’s how it works — takes 10 seconds.</p>
+          <div className="mt-6 space-y-3 text-left">
+            {[
+              ['⛵', 'Enter your boat', 'Type your boat + name on the next screen.'],
+              ['🛰️', 'Your phone tracks you', 'Keep it on board — it records your position through the race.'],
+              ['📡', 'Works offline', 'No signal at sea? It saves your track and syncs when you’re back.'],
+              ['🏁', 'Auto finish', 'Cross the line and it logs your finish time automatically.'],
+            ].map(([icon, title, body]) => (
+              <div key={title} className="flex items-start gap-3 bg-white/10 rounded-xl px-4 py-3">
+                <span className="text-2xl">{icon}</span>
+                <div>
+                  <p className="font-semibold">{title}</p>
+                  <p className="text-sm text-blue-100">{body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={dismissIntro}
+            className="mt-7 w-full rounded-xl bg-white text-blue-700 font-semibold py-3 text-base hover:bg-blue-50 transition-colors"
+          >
+            Let’s go →
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center px-4 py-8">

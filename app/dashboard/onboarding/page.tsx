@@ -12,13 +12,13 @@ interface ClubResult {
   name: string
 }
 
-type Step = 'find-club' | 'pick-role'
+type Step = 'welcome' | 'find-club'
 
 export default function OnboardingPage() {
   const router = useRouter()
   const { user } = useAuth()
 
-  const [step, setStep] = useState<Step>('find-club')
+  const [step, setStep] = useState<Step>('welcome')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ClubResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -32,8 +32,7 @@ export default function OnboardingPage() {
   const [inviteError, setInviteError] = useState('')
 
   // After joining/creating, we land here to pick role
-  const [joinedClubId, setJoinedClubId] = useState<string | null>(null)
-  const [joinedClubName, setJoinedClubName] = useState('')
+
 
   // Debounced search
   const search = useCallback(async (q: string) => {
@@ -69,18 +68,19 @@ export default function OnboardingPage() {
     return () => clearTimeout(timer)
   }, [query, search])
 
-  async function handleJoin(clubId: string, clubName: string, role?: string) {
+  async function handleJoin(clubId: string) {
     setError('')
     setLoading(true)
 
     const supabase = getBrowserClient()
     if (!user) { router.push('/login'); return }
 
+    // Joiners are always members (admin is only the club creator; OOD is per-race).
     const { error: err } = await supabase
       .from('profiles')
       .update({
         club_id: clubId,
-        role: role ?? 'competitor',
+        role: 'member',
       })
       .eq('id', user.id)
 
@@ -90,15 +90,8 @@ export default function OnboardingPage() {
       return
     }
 
-    if (!role) {
-      // Go to role selection
-      setJoinedClubId(clubId)
-      setJoinedClubName(clubName)
-      setStep('pick-role')
-      setLoading(false)
-    } else {
-      sessionStorage.setItem('schq_onboarded', '1'); window.location.href = '/dashboard'
-    }
+    sessionStorage.setItem('schq_onboarded', '1')
+    window.location.href = '/dashboard'
   }
 
   async function handleCreate() {
@@ -165,99 +158,39 @@ export default function OnboardingPage() {
     setInviteClub(data)
   }
 
-  async function selectRole(role: string) {
-    if (!joinedClubId || !user) return
-
-    setLoading(true)
-    setError('')
-
-    const supabase = getBrowserClient()
-    const { error: err } = await supabase
-      .from('profiles')
-      .update({ role })
-      .eq('id', user.id)
-
-    if (err) {
-      setError(err.message)
-      setLoading(false)
-      return
-    }
-
-    sessionStorage.setItem('schq_onboarded', '1'); window.location.href = '/dashboard'
-  }
-
   const exactMatch = results.some(r => r.name.toLowerCase() === query.trim().toLowerCase())
 
-  // ===== STEP 2: Pick role =====
-  if (step === 'pick-role') {
+  // ===== STEP 0: Welcome intro =====
+  if (step === 'welcome') {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-        <div className="w-full max-w-md">
-          <div className="text-center mb-8">
-            <span className="text-4xl">⛵</span>
-            <h1 className="text-2xl font-bold text-gray-900 mt-3">Welcome to {joinedClubName}</h1>
-            <p className="text-sm text-gray-500 mt-1">What&apos;s your role?</p>
+      <div className="min-h-screen bg-gradient-to-b from-blue-600 to-slate-900 flex items-center justify-center px-4">
+        <div className="w-full max-w-md text-center text-white">
+          <div className="text-5xl mb-4">⛵</div>
+          <h1 className="text-3xl font-bold">Welcome to Waypoint Racing</h1>
+          <p className="text-blue-100 mt-3">Live GPS race tracking, nav &amp; results — for your club.</p>
+
+          <div className="mt-8 space-y-3 text-left">
+            {[
+              ['🏁', 'Join or create your club', 'Everything is organised around your sailing club.'],
+              ['⛵', 'Add your boat', 'So your results and tracks are yours.'],
+              ['📱', 'Race with your phone', 'Live tracking, offline nav, and a finish line that times you.'],
+            ].map(([icon, title, body]) => (
+              <div key={title} className="flex items-start gap-3 bg-white/10 rounded-xl px-4 py-3">
+                <span className="text-2xl">{icon}</span>
+                <div>
+                  <p className="font-semibold">{title}</p>
+                  <p className="text-sm text-blue-100">{body}</p>
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div className="space-y-3">
-            <button
-              onClick={() => selectRole('competitor')}
-              disabled={loading}
-              className="w-full text-left"
-            >
-              <Card className="hover:border-blue-300 hover:shadow-md transition-all cursor-pointer p-5">
-                <div className="flex items-start gap-4">
-                  <span className="text-2xl">🏁</span>
-                  <div>
-                    <h2 className="font-semibold text-gray-900">Competitor</h2>
-                    <p className="text-sm text-gray-500 mt-0.5">
-                      I&apos;m here to race — enter races, upload tracks, view results
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            </button>
-
-            <button
-              onClick={() => selectRole('race_officer')}
-              disabled={loading}
-              className="w-full text-left"
-            >
-              <Card className="hover:border-blue-300 hover:shadow-md transition-all cursor-pointer p-5">
-                <div className="flex items-start gap-4">
-                  <span className="text-2xl">📋</span>
-                  <div>
-                    <h2 className="font-semibold text-gray-900">Race Officer / OOD</h2>
-                    <p className="text-sm text-gray-500 mt-0.5">
-                      I manage races — set courses, run starts, record results
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            </button>
-
-            <button
-              onClick={() => selectRole('admin')}
-              disabled={loading}
-              className="w-full text-left"
-            >
-              <Card className="hover:border-blue-300 hover:shadow-md transition-all cursor-pointer p-5">
-                <div className="flex items-start gap-4">
-                  <span className="text-2xl">👑</span>
-                  <div>
-                    <h2 className="font-semibold text-gray-900">Club Admin</h2>
-                    <p className="text-sm text-gray-500 mt-0.5">
-                      I manage the club — members, settings, everything
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            </button>
-          </div>
-
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-3 mt-4">{error}</p>
-          )}
+          <button
+            onClick={() => setStep('find-club')}
+            className="mt-8 w-full rounded-xl bg-white text-blue-700 font-semibold py-3 text-base hover:bg-blue-50 transition-colors"
+          >
+            Get started →
+          </button>
         </div>
       </div>
     )
@@ -299,7 +232,7 @@ export default function OnboardingPage() {
                 {results.map((club) => (
                   <button
                     key={club.id}
-                    onClick={() => handleJoin(club.id, club.name)}
+                    onClick={() => handleJoin(club.id)}
                     disabled={loading}
                     className="w-full text-left flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all"
                   >
@@ -401,7 +334,7 @@ export default function OnboardingPage() {
                 </div>
                 <Button
                   size="sm"
-                  onClick={() => handleJoin(inviteClub.id, inviteClub.name)}
+                  onClick={() => handleJoin(inviteClub.id)}
                   loading={loading}
                 >
                   Join
