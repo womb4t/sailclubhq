@@ -301,13 +301,21 @@ export default function RaceJoinPage() {
           if (entryErr) { setError(entryErr.message); setSubmitting(false); return }
           setSuccessEntry({ boat_name: cb?.boat_name ?? null, class_name: null, role: 'crew' })
         } else {
-          const { error: entryErr } = await supabase.from('race_entries').insert({
+          const { data: inserted, error: entryErr } = await supabase.from('race_entries').insert({
             race_id: race!.id, boat_id: null, class_id: null,
             helm_name: (profile?.full_name ?? 'Crew') + ' (available as crew)',
             phone: profile?.phone ?? null, status: 'entered', role: 'crew',
             user_id: user!.id,
-          })
+          }).select('id').maybeSingle()
           if (entryErr) { setError(entryErr.message); setSubmitting(false); return }
+          // Fire-and-forget: notify entered boats' helms that crew is available.
+          if (inserted?.id) {
+            void fetch('/api/crew-notify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type: 'crew-available', crewEntryId: inserted.id, raceToken: token }),
+            }).catch(() => {})
+          }
           setSuccessEntry({ boat_name: null, class_name: null, role: 'crew' })
         }
         setStep('done')

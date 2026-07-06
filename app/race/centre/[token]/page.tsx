@@ -390,6 +390,12 @@ export default function RaceCentrePage() {
       .eq('id', crewEntryId)
     setCrewBusyId(null)
     if (error) { alert('Could not send invite: ' + error.message); return }
+    // Fire-and-forget: email/SMS the invited crew member.
+    void fetch('/api/crew-notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'crew-invited', crewEntryId, raceToken: token }),
+    }).catch(() => {})
     await reloadEntries()
   }
 
