@@ -7,9 +7,9 @@
 //   TWILIO_AUTH_TOKEN
 //   TWILIO_MESSAGING_SERVICE_SID  (MG...)  — preferred sender
 //   TWILIO_FROM_NUMBER            (+44...) — fallback if no messaging service
-//   SENDGRID_API_KEY              (SG...)
-//   SENDGRID_FROM_EMAIL           (verified single sender)
-//   SENDGRID_FROM_NAME            (optional, defaults "Waypoint Racing")
+//   RESEND_API_KEY               (re...)
+//   RESEND_FROM_EMAIL            (address on a verified domain, e.g. no_reply@streetandboulder.com)
+//   RESEND_FROM_NAME             (optional, defaults "Waypoint Racing")
 
 type SendResult = { ok: boolean; skipped?: boolean; error?: string }
 
@@ -49,32 +49,30 @@ export async function sendSms(to: string, body: string): Promise<SendResult> {
 
 // ── Email ────────────────────────────────────────────────────────────────
 export async function sendEmail(to: string, subject: string, html: string, text?: string): Promise<SendResult> {
-  const key = process.env.SENDGRID_API_KEY
-  const fromEmail = process.env.SENDGRID_FROM_EMAIL
+  const key = process.env.RESEND_API_KEY
+  const fromEmail = process.env.RESEND_FROM_EMAIL
   if (!key || !fromEmail) return { ok: false, skipped: true }
   if (!to) return { ok: false, skipped: true }
-  const fromName = process.env.SENDGRID_FROM_NAME || 'Waypoint Racing'
+  const fromName = process.env.RESEND_FROM_NAME || 'Waypoint Racing'
 
   try {
-    const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${key}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        personalizations: [{ to: [{ email: to }] }],
-        from: { email: fromEmail, name: fromName },
+        from: `${fromName} <${fromEmail}>`,
+        to: [to],
         subject,
-        content: [
-          { type: 'text/plain', value: text || html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() },
-          { type: 'text/html', value: html },
-        ],
+        html,
+        text: text || html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
       }),
     })
     if (!res.ok) {
       const t = await res.text()
-      return { ok: false, error: `sendgrid ${res.status}: ${t.slice(0, 200)}` }
+      return { ok: false, error: `resend ${res.status}: ${t.slice(0, 200)}` }
     }
     return { ok: true }
   } catch (e) {
