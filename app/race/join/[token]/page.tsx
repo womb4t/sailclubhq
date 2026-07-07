@@ -66,6 +66,49 @@ function extractStartTime(notes: string | null): string | null {
   return match ? match[1] : null
 }
 
+const SAFETY_NUDGE_KEY = 'scq-dismissed-safety-nudge'
+
+// Gentle, dismissable reminder to add a safety/emergency contact. NEVER a gate.
+// - Logged-in users with no emergency contact: prompt to add one.
+// - Anonymous racers: lighter nudge to register + add safety details.
+function SafetyNudge({ mode }: { mode: 'add-contact' | 'register' }) {
+  const [dismissed, setDismissed] = useState(true)
+  useEffect(() => {
+    try { setDismissed(localStorage.getItem(SAFETY_NUDGE_KEY) === '1') } catch { setDismissed(false) }
+  }, [])
+  if (dismissed) return null
+  function dismiss() {
+    setDismissed(true)
+    try { localStorage.setItem(SAFETY_NUDGE_KEY, '1') } catch { /* ignore */ }
+  }
+  return (
+    <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-amber-800">
+          <span className="font-medium">⚠️ Add a safety contact</span> — the race team can see this on the water.
+        </p>
+        <div className="mt-1.5">
+          {mode === 'add-contact' ? (
+            <Link href="/dashboard/profile" className="inline-block text-xs font-semibold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-md px-2.5 py-1">
+              Add now
+            </Link>
+          ) : (
+            <span className="text-xs text-amber-700">Save your results below to add safety details.</span>
+          )}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={dismiss}
+        aria-label="Dismiss"
+        className="shrink-0 text-amber-500 hover:text-amber-700 text-sm leading-none px-1"
+      >
+        ✕
+      </button>
+    </div>
+  )
+}
+
 function EmergencyBanner({ profile }: { profile: Profile }) {
   return (
     <div className="flex items-center justify-between px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
@@ -284,6 +327,7 @@ export default function RaceJoinPage() {
 
       const rowBase = {
         boat_name: anonBoatName.trim(),
+        sail_number: anonSailNumber.trim() || null,
         helm_name: anonHelmName.trim() || null,
         status: 'entered' as const,
         role: 'helm',
@@ -430,9 +474,11 @@ export default function RaceJoinPage() {
           const { data: dup } = await supabase.from('race_entries').select('id').eq('race_id', race!.id).eq('boat_id', selectedBoatId).neq('status', 'withdrawn').limit(1)
           if (dup && dup.length > 0) { setError('This boat is already entered in this race.'); setSubmitting(false); return }
         }
+        const helmBoat = userBoats.find((b) => b.id === selectedBoatId)
         const { error: entryErr } = await supabase.from('race_entries').insert({
           race_id: race!.id, boat_id: selectedBoatId || null, class_id: selectedClassId || null,
-          helm_name: profile?.full_name ?? '', phone: profile?.phone ?? null, status: 'entered', role: 'helm',
+          helm_name: profile?.full_name ?? '', sail_number: helmBoat?.sail_number ?? null,
+          phone: profile?.phone ?? null, status: 'entered', role: 'helm',
           user_id: user!.id,
         })
         if (entryErr) { setError(entryErr.message); setSubmitting(false); return }
@@ -945,6 +991,12 @@ export default function RaceJoinPage() {
 
             {step === 'done' && successEntry && (
               <Card>
+                {/* Safety reminder — never a gate. Only when a contact is missing. */}
+                {user
+                  ? (!profile?.emergency_contact_name && !profile?.emergency_contact_phone) && (
+                      <div className="mb-3"><SafetyNudge mode="add-contact" /></div>
+                    )
+                  : <div className="mb-3"><SafetyNudge mode="register" /></div>}
                 <div className="text-center py-6 space-y-3">
                   <div className="text-5xl">⛵</div>
                   <h2 className="text-xl font-bold text-gray-900">You are entered!</h2>

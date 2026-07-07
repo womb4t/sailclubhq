@@ -134,6 +134,7 @@ export interface RaceEntry {
   phone_offset_from_bow_m: number | null
   status: EntryStatus
   helm_name: string | null
+  sail_number: string | null
   phone: string | null
   role: 'helm' | 'crew'
   created_at: string

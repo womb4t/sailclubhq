@@ -154,6 +154,9 @@ export default function RaceCentrePage() {
   // Member's own details, to build a pre-filled no-login tracking link.
   const [myBoat, setMyBoat] = useState<{ boat_name: string; sail_number: string | null } | null>(null)
   const [myName, setMyName] = useState<string>('')
+  // Whether the signed-in user is missing an emergency contact (drives a gentle nudge).
+  const [needsSafetyContact, setNeedsSafetyContact] = useState(false)
+  const [safetyNudgeDismissed, setSafetyNudgeDismissed] = useState(true)
   // Fleet (entries) + organiser remove.
   const [entries, setEntries] = useState<Array<{ id: string; boat_name: string | null; helm_name: string | null; status: string }>>([])
   const [crewAvailable, setCrewAvailable] = useState<Array<{ id: string; helm_name: string | null; phone: string | null; crew_invited_by: string | null; crew_invite_status: string | null }>>([])
@@ -265,10 +268,12 @@ export default function RaceCentrePage() {
       if (user) {
         const { data: prof } = await supabase
           .from('profiles')
-          .select('full_name, role')
+          .select('full_name, role, emergency_contact_name, emergency_contact_phone')
           .eq('id', user.id)
           .maybeSingle()
         if (prof?.full_name) setMyName(prof.full_name)
+        const ec = prof as { emergency_contact_name?: string | null; emergency_contact_phone?: string | null } | null
+        setNeedsSafetyContact(!ec?.emergency_contact_name && !ec?.emergency_contact_phone)
         if ((prof as { role?: string } | null)?.role === 'admin') setIsAdmin(true)
         const rl = (prof as { role?: string } | null)?.role
         if (rl === 'admin' || rl === 'race_officer') setIsOfficer(true)
@@ -536,6 +541,15 @@ export default function RaceCentrePage() {
 
   const iAmOod = !!race && race.ood_id === user?.id
 
+  // Read any prior dismissal of the safety nudge (client-only).
+  useEffect(() => {
+    try { setSafetyNudgeDismissed(localStorage.getItem('scq-dismissed-safety-nudge') === '1') } catch { setSafetyNudgeDismissed(false) }
+  }, [])
+  function dismissSafetyNudge() {
+    setSafetyNudgeDismissed(true)
+    try { localStorage.setItem('scq-dismissed-safety-nudge', '1') } catch { /* ignore */ }
+  }
+
   // ── Derived ─────────────────────────────────────────────────────────────────
 
   const firstClass = startClasses[0] ?? null
@@ -724,6 +738,28 @@ export default function RaceCentrePage() {
             {race.series && <> · {race.series}{race.race_number ? ` — Race ${race.race_number}` : ''}</>}
           </p>
         </div>
+
+        {/* Safety reminder — never a gate. Only for members with no emergency contact. */}
+        {needsSafetyContact && !safetyNudgeDismissed && (
+          <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-amber-800">
+                <span className="font-medium">⚠️ Add a safety contact</span> — the race team can see this on the water.
+              </p>
+              <Link href="/dashboard/profile" className="mt-1.5 inline-block text-xs font-semibold text-amber-800 bg-amber-100 hover:bg-amber-200 rounded-md px-2.5 py-1">
+                Add now
+              </Link>
+            </div>
+            <button
+              type="button"
+              onClick={dismissSafetyNudge}
+              aria-label="Dismiss"
+              className="shrink-0 text-amber-500 hover:text-amber-700 text-sm leading-none px-1"
+            >
+              ✕
+            </button>
+          </div>
+        )}
 
         {/* Advance entry — declare you're racing before the day */}
         {race.status !== 'completed' && (
