@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { getBrowserClient } from '@/lib/supabase/browser'
 import { useAuth } from '@/context/AuthContext'
@@ -10,6 +10,7 @@ import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge, RoundingBadge } from '@/components/ui/Badge'
 import { WaypointFooter } from '@/components/WaypointFooter'
 import { BoatIdentityNudge } from '@/components/BoatIdentityNudge'
+import { StartCountdown } from '@/components/race/StartCountdown'
 import { entryDisplayLabel } from '@/lib/entry-label'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -101,6 +102,7 @@ interface RaceData {
   club_id: string | null
   course_template_id: string | null
   start_time: string | null
+  start_scheduled_at: string | null
   ood_id: string | null
   ood_open_for_volunteer: boolean | null
   ood_accepted: boolean | null
@@ -143,7 +145,12 @@ interface CourseData {
 export default function RaceCentrePage() {
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const token = params?.token as string
+  // Training/sim mode: speed the displayed countdown so testers see the whole
+  // start sequence in seconds (matches the Race Nav sim multiplier of 8x).
+  const SIM_SPEED = 8
+  const simActive = searchParams?.get('sim') === '1'
   const { user, loading: authLoading } = useAuth()
 
   const [loading, setLoading] = useState(true)
@@ -176,6 +183,8 @@ export default function RaceCentrePage() {
   const [oodBusy, setOodBusy] = useState(false)
   const [clubMembers, setClubMembers] = useState<Array<{ id: string; full_name: string | null }>>([])
   const [pickTarget, setPickTarget] = useState('')
+  // Race Control (OOD): live synchronised start.
+  const [startBusy, setStartBusy] = useState(false)
 
   // Auth gate: redirect to login if not signed in
   useEffect(() => {
@@ -194,7 +203,7 @@ export default function RaceCentrePage() {
 
       const { data: raceData, error: raceErr } = await supabase
         .from('races')
-        .select('id, name, race_number, series, race_date, notes, safety_info, vhf_channel, status, entry_token, club_id, course_template_id, start_time, ood_id, ood_open_for_volunteer, ood_accepted, ood_assigned_by')
+        .select('id, name, race_number, series, race_date, notes, safety_info, vhf_channel, status, entry_token, club_id, course_template_id, start_time, start_scheduled_at, ood_id, ood_open_for_volunteer, ood_accepted, ood_assigned_by')
         .eq('entry_token', token)
         .single()
 
@@ -542,6 +551,52 @@ export default function RaceCentrePage() {
   }
 
   const iAmOod = !!race && race.ood_id === user?.id
+  // Whoever holds race control: the current OOD (self-taken competitor or
+  // assigned+accepted official) or a club officer/admin acting as controller.
+  const iAmController = iAmOod || (isOfficer && !!race)
+  // Absolute start time the controller has set (epoch ms), synchronised across boats.
+  const scheduledStartMs = race?.start_scheduled_at ? new Date(race.start_scheduled_at).getTime() : null
+  // Warning-signal lead time from the first start class (fallback 5 min).
+  const warningMins = startClasses[0]?.sequence_warning_mins ?? 5
+
+  // ── Race Control: set/adjust the synchronised start gun ─────────────────────
+  // Reuses the control-gated ood_set_start RPC (SECURITY DEFINER) so a competitor
+  // who has taken control can drive the start despite races UPDATE RLS.
+  async function setStartAt(iso: string | null) {
+    if (!race) return
+    setStartBusy(true)
+    const supabase = getBrowserClient()
+    const { data, error: e } = await supabase.rpc('ood_set_start', { p_race: race.id, p_start: iso })
+    setStartBusy(false)
+    if (e) { alert('Could not set start: ' + e.message); return }
+    if (data !== 'set') { alert('Could not set start (' + data + ').'); return }
+    // Optimistic local update; realtime will also confirm for everyone.
+    setRace((r) => (r ? { ...r, start_scheduled_at: iso } : r))
+  }
+
+  // Schedule the gun a number of minutes from now (big one-tap controls).
+  function scheduleInMinutes(mins: number) {
+    setStartAt(new Date(Date.now() + mins * 60_000).toISOString())
+  }
+
+  // ── Realtime: watch THIS race row so start/OOD/status changes reflect live ──
+  // Foundation reused by later controls (recall/delay/abandon will broadcast here).
+  useEffect(() => {
+    if (!race?.id) return
+    const supabase = getBrowserClient()
+    const channel = supabase
+      .channel(`race:${race.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'races', filter: `id=eq.${race.id}` },
+        (payload) => {
+          const n = payload.new as Partial<RaceData>
+          setRace((r) => (r ? { ...r, ...n } : r))
+        },
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [race?.id])
 
   // Read any prior dismissal of the safety nudge (client-only).
   useEffect(() => {
@@ -978,6 +1033,104 @@ export default function RaceCentrePage() {
             </div>
           )}
         </Card>
+
+        {/* ── RACE CONTROL (OOD) ─────────────────────────────────────────────
+            Visible ONLY to whoever holds control. If nobody holds it and the race
+            is competitor-run, offer a big "Take race control" button (reuses the
+            existing take-control flow). */}
+        {iAmController ? (
+          <Card className="border-2 border-red-500">
+            <CardHeader>
+              <CardTitle>🏴 Race Control{iAmOod ? '' : ' (officer)'}</CardTitle>
+            </CardHeader>
+            <div className="space-y-4">
+              {/* Live synchronised countdown (same beeps + tenths as Race Nav). */}
+              {scheduledStartMs ? (
+                <StartCountdown
+                  startMs={scheduledStartMs}
+                  warningMins={warningMins}
+                  speedMultiplier={simActive ? SIM_SPEED : 1}
+                  compact
+                />
+              ) : (
+                <div className="rounded-xl bg-gray-900 py-6 text-center">
+                  <p className="text-sm text-gray-400">No start scheduled yet.</p>
+                  <p className="text-xs text-gray-500 mt-1">Set a start below — every boat's screen counts down in sync.</p>
+                </div>
+              )}
+
+              {/* Big one-tap presets — usable one-handed on the water. */}
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-2">
+                  {scheduledStartMs ? 'Reset the gun to:' : 'Start the sequence — gun in:'}
+                </p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[5, 3, 1].map((mins) => (
+                    <button
+                      key={mins}
+                      onClick={() => scheduleInMinutes(mins)}
+                      disabled={startBusy}
+                      className="rounded-xl bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold py-4 text-lg disabled:opacity-50 transition-colors"
+                    >
+                      {mins} min
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Precise absolute time (today), plus clear. */}
+              <div className="flex flex-wrap items-end gap-2 pt-1 border-t border-gray-100">
+                <div className="flex-1 min-w-[8rem]">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Set exact start time</label>
+                  <input
+                    type="time"
+                    step="1"
+                    disabled={startBusy}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-base tabular-nums disabled:opacity-50"
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (!v) return
+                      const [h, m, s] = v.split(':').map(Number)
+                      const d = new Date()
+                      d.setHours(h, m, s || 0, 0)
+                      // If the chosen time already passed today, roll to the next minute-safe future.
+                      if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1)
+                      setStartAt(d.toISOString())
+                    }}
+                  />
+                </div>
+                {scheduledStartMs && (
+                  <button
+                    onClick={() => setStartAt(null)}
+                    disabled={startBusy}
+                    className="shrink-0 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 text-sm font-medium disabled:opacity-50"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-gray-400">
+                The start is an absolute time, so every boat counts down together. Changing it here updates all screens live.
+              </p>
+            </div>
+          </Card>
+        ) : (!race?.ood_id && (race?.ood_open_for_volunteer ?? true)) ? (
+          <Card className="border-2 border-dashed border-red-300">
+            <CardHeader>
+              <CardTitle>🏴 Race Control</CardTitle>
+            </CardHeader>
+            <p className="text-sm text-gray-600 mb-3">
+              No one is running this race yet. Take control to set the start and run the countdown for the fleet.
+            </p>
+            <button
+              onClick={() => takeOod(false)}
+              disabled={oodBusy}
+              className="w-full rounded-xl bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold py-4 text-lg disabled:opacity-50"
+            >
+              🙋 Take race control
+            </button>
+          </Card>
+        ) : null}
 
         {/* Crew: MY pending/decided invite (shown to the crew member) */}
         {myCrewEntry && myCrewEntry.crew_invite_status === 'pending' && myCrewEntry.crew_invited_by && (
