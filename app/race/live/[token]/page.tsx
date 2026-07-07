@@ -22,7 +22,9 @@ import { StartCountdown } from '@/components/race/StartCountdown'
 import { MarkReachedBanner } from '@/components/race/MarkReachedBanner'
 import { FinishBanner } from '@/components/race/FinishBanner'
 import { ControlBanner } from '@/components/race/ControlBanner'
+import { RecallBanner } from '@/components/race/RecallBanner'
 import { useRaceProgress, type ProgressCourse } from '@/lib/useRaceProgress'
+import { isOnCourseSide } from '@/lib/ocs'
 
 // Dynamically import to avoid SSR issues with Leaflet
 const RaceMap = dynamic(() => import('@/components/map/RaceMap'), { ssr: false })
@@ -48,16 +50,9 @@ function bearingDeg(lat1: number, lon1: number, lat2: number, lon2: number): num
   return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360
 }
 
-function isOnCourseSide(
-  boatLat: number, boatLon: number,
-  lineLat1: number, lineLon1: number,
-  lineLat2: number, lineLon2: number,
-  markLat: number, markLon: number,
-): boolean {
-  const d1 = (lineLon2 - lineLon1) * (boatLat - lineLat1) - (lineLat2 - lineLat1) * (boatLon - lineLon1)
-  const d2 = (lineLon2 - lineLon1) * (markLat - lineLat1) - (lineLat2 - lineLat1) * (markLon - lineLon1)
-  return (d1 > 0) === (d2 > 0)
-}
+// isOnCourseSide now lives in lib/ocs.ts (shared with the committee auto-detection
+// pass + unit-tested there). Imported above so the on-water self-detection and the
+// Race Centre use ONE definition of "course side".
 
 function linesIntersect(
   p1: [number, number], p2: [number, number],
@@ -173,6 +168,8 @@ interface RaceData {
   race_status: string | null
   control_message: string | null
   control_message_at: string | null
+  // Committee-authoritative individual-recall flag for the whole fleet.
+  individual_recall: boolean | null
 }
 
 interface EntryData {
@@ -180,6 +177,8 @@ interface EntryData {
   helm_name: string | null
   finish_time: string | null
   laps_completed: number
+  // Committee-set OCS flag for THIS boat (set by the OOD / auto pass in Race Centre).
+  ocs: boolean | null
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
@@ -331,7 +330,7 @@ export default function LiveRacePage() {
 
     const { data: raceData, error: raceErr } = await supabase
       .from('races')
-      .select('id, name, entry_token, status, course_template_id, start_scheduled_at, race_status, control_message, control_message_at')
+      .select('id, name, entry_token, status, course_template_id, start_scheduled_at, race_status, control_message, control_message_at, individual_recall')
       .eq('entry_token', token)
       .single()
 
@@ -428,7 +427,7 @@ export default function LiveRacePage() {
     if (user || participantId) {
       let entryQuery = supabase
         .from('race_entries')
-        .select('id, helm_name, finish_time, laps_completed')
+        .select('id, helm_name, finish_time, laps_completed, ocs')
         .eq('race_id', raceData.id)
         .limit(1)
       entryQuery = user
@@ -551,6 +550,25 @@ export default function LiveRacePage() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [race?.id])
+
+  // ── Realtime: watch THIS boat's entry so the committee's OCS flag (set from the
+  //    Race Centre auto-detection / manual override) appears live here ──────────
+  useEffect(() => {
+    if (!entry?.id) return
+    const supabase = getBrowserClient()
+    const channel = supabase
+      .channel(`entry:${entry.id}:live`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'race_entries', filter: `id=eq.${entry.id}` },
+        (payload) => {
+          const n = payload.new as Partial<EntryData>
+          setEntry((e) => (e ? { ...e, ...n } : e))
+        },
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [entry?.id])
 
   // ── GPS tracking (real) OR simulator (training) ─────────────────────────────
   useEffect(() => {
@@ -886,6 +904,11 @@ export default function LiveRacePage() {
   const abandoned = race?.race_status === 'abandoned'
   const showCountdown = !raceStarted && startMs != null && !finished && !abandoned
   const isRacing = raceStarted && !abandoned
+  // Committee-authoritative individual recall (distinct from the boat's own local
+  // OCS guess `ocs`): iAmOcs = this entry flagged OCS by the OOD; recallActive =
+  // an individual recall is in effect for the fleet. Both arrive live via realtime.
+  const iAmOcs = entry?.ocs === true
+  const recallActive = race?.individual_recall === true
 
   // ── Loading / error ────────────────────────────────────────────────────────
   if (loading) {
@@ -916,6 +939,11 @@ export default function LiveRacePage() {
       {/* Race Control broadcast banner (postponed / abandoned) — live via the
           races-row realtime subscription; visually distinct from mark/finish. */}
       <ControlBanner raceStatus={race.race_status} startMs={startMs} />
+
+      {/* Committee individual-recall / OCS broadcast — hard red if THIS boat is
+          OCS (return + restart), subtle note if a recall is in effect but we're
+          clear. Live via the races-row + own-entry realtime subscriptions. */}
+      {!finished && <RecallBanner iAmOcs={iAmOcs} recallActive={recallActive} />}
 
       {/* Training-mode banner */}
       {isSim && (
