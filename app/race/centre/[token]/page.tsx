@@ -12,6 +12,7 @@ import { WaypointFooter } from '@/components/WaypointFooter'
 import { BoatIdentityNudge } from '@/components/BoatIdentityNudge'
 import { StartCountdown } from '@/components/race/StartCountdown'
 import { entryDisplayLabel } from '@/lib/entry-label'
+import { detectOcs, type BoatFix, type StartLine, type CourseRef } from '@/lib/ocs'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -106,6 +107,7 @@ interface RaceData {
   race_status: string | null
   control_message: string | null
   control_message_at: string | null
+  individual_recall: boolean | null
   ood_id: string | null
   ood_open_for_volunteer: boolean | null
   ood_accepted: boolean | null
@@ -170,7 +172,7 @@ export default function RaceCentrePage() {
   const [needsSafetyContact, setNeedsSafetyContact] = useState(false)
   const [safetyNudgeDismissed, setSafetyNudgeDismissed] = useState(true)
   // Fleet (entries) + organiser remove.
-  const [entries, setEntries] = useState<Array<{ id: string; boat_name: string | null; sail_number: string | null; helm_name: string | null; status: string }>>([])
+  const [entries, setEntries] = useState<Array<{ id: string; boat_name: string | null; sail_number: string | null; helm_name: string | null; status: string; ocs?: boolean | null }>>([])
   const [crewAvailable, setCrewAvailable] = useState<Array<{ id: string; helm_name: string | null; phone: string | null; crew_invited_by: string | null; crew_invite_status: string | null }>>([])
   const [myEntry, setMyEntry] = useState<{ id: string; boat_name: string | null; status: string } | null>(null)
   // My own crew-available entry (if I entered as crew looking for a boat) + any invite on it.
@@ -194,6 +196,9 @@ export default function RaceCentrePage() {
   const [radioNote, setRadioNote] = useState<string | null>(null)
   // Two-tap guard so an accidental single tap can't abandon the race.
   const [confirmAbandon, setConfirmAbandon] = useState(false)
+  // Individual recall (OCS) — committee-authoritative flagging + broadcast.
+  const [ocsBusy, setOcsBusy] = useState(false)
+  const [autoRan, setAutoRan] = useState(false)
 
   // Auth gate: redirect to login if not signed in
   useEffect(() => {
@@ -212,7 +217,7 @@ export default function RaceCentrePage() {
 
       const { data: raceData, error: raceErr } = await supabase
         .from('races')
-        .select('id, name, race_number, series, race_date, notes, safety_info, vhf_channel, status, entry_token, club_id, course_template_id, start_time, start_scheduled_at, race_status, control_message, control_message_at, ood_id, ood_open_for_volunteer, ood_accepted, ood_assigned_by')
+        .select('id, name, race_number, series, race_date, notes, safety_info, vhf_channel, status, entry_token, club_id, course_template_id, start_time, start_scheduled_at, race_status, control_message, control_message_at, individual_recall, ood_id, ood_open_for_volunteer, ood_accepted, ood_assigned_by')
         .eq('entry_token', token)
         .single()
 
@@ -310,17 +315,17 @@ export default function RaceCentrePage() {
       // Fleet: everyone entered in this race.
       const { data: ents } = await supabase
         .from('race_entries')
-        .select('id, boat_name, sail_number, helm_name, phone, status, role, boat_id, user_id, participant_id, crew_invited_by, crew_invite_status, crew_invited_boat_name')
+        .select('id, boat_name, sail_number, helm_name, phone, status, role, boat_id, user_id, participant_id, crew_invited_by, crew_invite_status, crew_invited_boat_name, ocs')
         .eq('race_id', raceData.id)
         .neq('status', 'withdrawn')
         .order('created_at', { ascending: true })
       const myParticipantId = typeof window !== 'undefined' ? window.localStorage.getItem('scq-participant-id') : null
       if (ents) {
-        const rows = ents as Array<{ id: string; boat_name: string | null; sail_number: string | null; helm_name: string | null; phone: string | null; status: string; role: string | null; boat_id: string | null; user_id: string | null; participant_id: string | null; crew_invited_by: string | null; crew_invite_status: string | null; crew_invited_boat_name: string | null }>
+        const rows = ents as Array<{ id: string; boat_name: string | null; sail_number: string | null; helm_name: string | null; phone: string | null; status: string; role: string | null; boat_id: string | null; user_id: string | null; participant_id: string | null; crew_invited_by: string | null; crew_invite_status: string | null; crew_invited_boat_name: string | null; ocs: boolean | null }>
         // Crew available = entered as crew with no boat AND not yet accepted onto one.
         const crew = rows.filter((r) => r.role === 'crew' && !r.boat_id && r.crew_invite_status !== 'accepted')
         const boats = rows.filter((r) => !(r.role === 'crew' && !r.boat_id && r.crew_invite_status !== 'accepted'))
-        setEntries(boats.map((r) => ({ id: r.id, boat_name: r.boat_name, sail_number: r.sail_number, helm_name: r.helm_name, status: r.status })))
+        setEntries(boats.map((r) => ({ id: r.id, boat_name: r.boat_name, sail_number: r.sail_number, helm_name: r.helm_name, status: r.status, ocs: r.ocs })))
         setCrewAvailable(crew.map((r) => ({ id: r.id, helm_name: (r.helm_name ?? '').replace(/\s*\(available as crew\)\s*/i, '').trim() || 'A sailor', phone: r.phone, crew_invited_by: r.crew_invited_by, crew_invite_status: r.crew_invite_status })))
         // Is one of these crew rows MINE? (by user_id or this device's participant_id)
         const mineCrew = rows.find((r) => r.role === 'crew' && !r.boat_id && ((user && r.user_id === user.id) || (myParticipantId && r.participant_id === myParticipantId)))
@@ -387,16 +392,16 @@ export default function RaceCentrePage() {
     const supabase = getBrowserClient()
     const { data: ents } = await supabase
       .from('race_entries')
-      .select('id, boat_name, sail_number, helm_name, phone, status, role, boat_id, user_id, participant_id, crew_invited_by, crew_invite_status, crew_invited_boat_name')
+      .select('id, boat_name, sail_number, helm_name, phone, status, role, boat_id, user_id, participant_id, crew_invited_by, crew_invite_status, crew_invited_boat_name, ocs')
       .eq('race_id', race.id)
       .neq('status', 'withdrawn')
       .order('created_at', { ascending: true })
     if (!ents) return
-    const rows = ents as Array<{ id: string; boat_name: string | null; sail_number: string | null; helm_name: string | null; phone: string | null; status: string; role: string | null; boat_id: string | null; user_id: string | null; participant_id: string | null; crew_invited_by: string | null; crew_invite_status: string | null; crew_invited_boat_name: string | null }>
+    const rows = ents as Array<{ id: string; boat_name: string | null; sail_number: string | null; helm_name: string | null; phone: string | null; status: string; role: string | null; boat_id: string | null; user_id: string | null; participant_id: string | null; crew_invited_by: string | null; crew_invite_status: string | null; crew_invited_boat_name: string | null; ocs: boolean | null }>
     const myParticipantId = typeof window !== 'undefined' ? window.localStorage.getItem('scq-participant-id') : null
     const crew = rows.filter((r) => r.role === 'crew' && !r.boat_id && r.crew_invite_status !== 'accepted')
     const boats = rows.filter((r) => !(r.role === 'crew' && !r.boat_id && r.crew_invite_status !== 'accepted'))
-    setEntries(boats.map((r) => ({ id: r.id, boat_name: r.boat_name, sail_number: r.sail_number, helm_name: r.helm_name, status: r.status })))
+    setEntries(boats.map((r) => ({ id: r.id, boat_name: r.boat_name, sail_number: r.sail_number, helm_name: r.helm_name, status: r.status, ocs: r.ocs })))
     setCrewAvailable(crew.map((r) => ({ id: r.id, helm_name: (r.helm_name ?? '').replace(/\s*\(available as crew\)\s*/i, '').trim() || 'A sailor', phone: r.phone, crew_invited_by: r.crew_invited_by, crew_invite_status: r.crew_invite_status })))
     const mineCrew = rows.find((r) => r.role === 'crew' && !r.boat_id && ((user && r.user_id === user.id) || (myParticipantId && r.participant_id === myParticipantId)))
     setMyCrewEntry(mineCrew ? { id: mineCrew.id, crew_invited_by: mineCrew.crew_invited_by, crew_invite_status: mineCrew.crew_invite_status, crew_invited_boat_name: mineCrew.crew_invited_boat_name } : null)
@@ -618,6 +623,106 @@ export default function RaceCentrePage() {
     setRadioNote("📻 Announce on the radio: 'Race abandoned.'")
   }
 
+  // ── Race Control: INDIVIDUAL RECALL (OCS) ───────────────────────────────
+  // Persist the EXACT set of OCS entry ids via the control-gated ood_flag_ocs RPC
+  // (SECURITY DEFINER, same auth as ood_set_start), then broadcast the recall
+  // (races.individual_recall) so every boat's screen updates live. Optimistic
+  // local update mirrors the confirmed state.
+  async function applyOcs(ocsIds: string[], opts: { broadcast?: boolean } = {}) {
+    if (!race) return
+    setOcsBusy(true)
+    const supabase = getBrowserClient()
+    const { data, error: e } = await supabase.rpc('ood_flag_ocs', { p_race: race.id, p_entry_ids: ocsIds })
+    if (e) { setOcsBusy(false); alert('Could not flag OCS: ' + e.message); return }
+    if (typeof data === 'number' && data < 0) {
+      setOcsBusy(false)
+      alert(data === -2 ? 'Only whoever holds race control can flag OCS.' : 'Could not flag OCS.')
+      return
+    }
+    // Broadcast (or clear) the fleet-wide recall flag. Active whenever ≥1 boat is OCS.
+    const active = opts.broadcast ?? ocsIds.length > 0
+    const { error: e2 } = await supabase.rpc('ood_set_individual_recall', { p_race: race.id, p_active: active })
+    setOcsBusy(false)
+    if (e2) { alert('Flagged OCS but could not broadcast recall: ' + e2.message); }
+    // Optimistic local state; realtime confirms for everyone.
+    const set = new Set(ocsIds)
+    setEntries((prev) => prev.map((en) => ({ ...en, ocs: set.has(en.id) })))
+    setRace((r) => (r ? { ...r, individual_recall: active } : r))
+  }
+
+  // Toggle a single boat's OCS flag (manual controller override). Recomputes the
+  // full set and re-applies it (ood_flag_ocs takes the whole list).
+  function toggleOcs(entryId: string) {
+    const current = entries.filter((en) => en.ocs).map((en) => en.id)
+    const next = current.includes(entryId)
+      ? current.filter((id) => id !== entryId)
+      : [...current, entryId]
+    void applyOcs(next)
+  }
+
+  // Clear the whole individual recall (all boats + fleet flag). Turning the flag
+  // OFF also clears every OCS flag server-side (see migration 035).
+  async function clearRecall() {
+    if (!race) return
+    setOcsBusy(true)
+    const supabase = getBrowserClient()
+    const { error: e } = await supabase.rpc('ood_set_individual_recall', { p_race: race.id, p_active: false })
+    setOcsBusy(false)
+    if (e) { alert('Could not clear recall: ' + e.message); return }
+    setEntries((prev) => prev.map((en) => ({ ...en, ocs: false })))
+    setRace((r) => (r ? { ...r, individual_recall: false } : r))
+  }
+
+  // AUTO-DETECTION at the gun: read each entry's most-recent live_positions fix
+  // at/just-before the start, run the pure detectOcs() against the start line +
+  // first mark, and flag the OCS boats + broadcast the recall.
+  //
+  // Geometry inputs: course.start_line_* (from course_templates) as the line, and
+  // course.marks[0] (the first mark / windward) as the course-side reference.
+  // Graceful degradation: if the start line or first mark is missing, detectOcs
+  // returns [] and we DON'T flag anyone — the OOD uses the manual list instead.
+  async function runAutoDetect() {
+    if (!race || !course) return
+    const startLine: StartLine | null =
+      course.start_line_lat1 != null && course.start_line_lng1 != null &&
+      course.start_line_lat2 != null && course.start_line_lng2 != null
+        ? { lat1: course.start_line_lat1, lng1: course.start_line_lng1, lat2: course.start_line_lat2, lng2: course.start_line_lng2 }
+        : null
+    const firstMark: CourseRef | null = course.marks.length > 0
+      ? { lat: course.marks[0].lat, lon: course.marks[0].lon }
+      : null
+    if (!startLine || !firstMark) return // graceful degradation — manual path only
+
+    const supabase = getBrowserClient()
+    const gunIso = race.start_scheduled_at
+    // Pull recent fixes for the race at/just-before the gun (small window), newest
+    // first, then keep the most-recent per entry.
+    let q = supabase
+      .from('live_positions')
+      .select('entry_id, lat, lon, recorded_at')
+      .eq('race_id', race.id)
+      .not('entry_id', 'is', null)
+      .order('recorded_at', { ascending: false })
+      .limit(500)
+    if (gunIso) {
+      // fixes up to ~10s after the gun (GPS jitter) so a late fix still counts.
+      q = q.lte('recorded_at', new Date(new Date(gunIso).getTime() + 10_000).toISOString())
+    }
+    const { data: pos } = await q
+    if (!pos || pos.length === 0) return
+    const seen = new Set<string>()
+    const fixes: BoatFix[] = []
+    for (const row of pos as Array<{ entry_id: string | null; lat: number; lon: number; recorded_at: string }>) {
+      if (!row.entry_id || seen.has(row.entry_id)) continue
+      seen.add(row.entry_id)
+      fixes.push({ entryId: row.entry_id, lat: row.lat, lon: row.lon, recordedAt: row.recorded_at })
+    }
+    const ocsIds = detectOcs(startLine, firstMark, fixes)
+    // Always broadcast a recall context so clear boats see the subtle note too, but
+    // only if we actually detected OCS boats; otherwise leave state untouched.
+    if (ocsIds.length > 0) await applyOcs(ocsIds, { broadcast: true })
+  }
+
   // ── Realtime: watch THIS race row so start/OOD/status changes reflect live ──
   // Foundation reused by later controls (recall/delay/abandon will broadcast here).
   useEffect(() => {
@@ -636,6 +741,31 @@ export default function RaceCentrePage() {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [race?.id])
+
+  // ── AUTO INDIVIDUAL RECALL trigger ──────────────────────────────────
+  // When the controller's countdown reaches the gun, run ONE detection pass. Only
+  // whoever holds control drives it (the RPC also enforces this) so it fires once,
+  // not once-per-viewer. Skipped in sim mode (no real positions) + if already run.
+  useEffect(() => {
+    if (!iAmController || simActive) return
+    if (scheduledStartMs == null || autoRan) return
+    const tick = () => {
+      if (Date.now() >= scheduledStartMs && !autoRan) {
+        setAutoRan(true)
+        void runAutoDetect()
+        return true
+      }
+      return false
+    }
+    if (tick()) return
+    const iv = setInterval(() => { if (tick()) clearInterval(iv) }, 500)
+    return () => clearInterval(iv)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [iAmController, simActive, scheduledStartMs, autoRan])
+
+  // Reset the auto-run guard whenever the gun is (re)scheduled so a fresh start
+  // after a recall re-arms detection.
+  useEffect(() => { setAutoRan(false) }, [scheduledStartMs])
 
   // Read any prior dismissal of the safety nudge (client-only).
   useEffect(() => {
@@ -1230,6 +1360,78 @@ export default function RaceCentrePage() {
                       ✕
                     </button>
                   </div>
+                )}
+              </div>
+
+              {/* ── INDIVIDUAL RECALL (OCS) ───────────────────────────────
+                  Auto-detection runs at the gun (marks the boats that were on the
+                  course side of the start line). The OOD can add/remove boats the
+                  auto pass missed — each tap re-applies the whole OCS set. Every
+                  flagged boat gets a live red recall banner on its own screen. */}
+              <div className="pt-3 border-t border-gray-100 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium text-gray-500">Individual recall (OCS)</p>
+                  {race.individual_recall && (
+                    <span className="text-[11px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
+                      🚩 Recall in effect — {entries.filter((e) => e.ocs).length} OCS
+                    </span>
+                  )}
+                </div>
+
+                {/* Auto-detection status / graceful-degradation note. */}
+                {(() => {
+                  const hasLine =
+                    course?.start_line_lat1 != null && course?.start_line_lat2 != null
+                  const hasMark = (course?.marks?.length ?? 0) > 0
+                  if (hasLine && hasMark) {
+                    return (
+                      <p className="text-[11px] text-gray-400">
+                        Auto-detection runs at the start gun using the start line + first mark. Adjust below if needed.
+                      </p>
+                    )
+                  }
+                  return (
+                    <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                      ⚠️ Auto-detection unavailable ({!hasLine ? 'no start line set' : 'no first mark'}). Flag OCS boats manually below.
+                    </p>
+                  )
+                })()}
+
+                {/* Manual per-boat toggles. */}
+                {entries.length === 0 ? (
+                  <p className="text-xs text-gray-400">No boats to flag yet.</p>
+                ) : (
+                  <ul className="divide-y divide-gray-100 rounded-lg border border-gray-100">
+                    {entries.map((en) => (
+                      <li key={en.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                        <span className="text-sm text-gray-900 truncate">
+                          {entryDisplayLabel(en)}
+                          {en.ocs && <span className="ml-2 text-[11px] font-semibold text-red-600">🚩 OCS</span>}
+                        </span>
+                        <button
+                          onClick={() => toggleOcs(en.id)}
+                          disabled={ocsBusy}
+                          className={`shrink-0 text-xs rounded-lg px-3 py-1.5 font-semibold disabled:opacity-50 transition-colors ${
+                            en.ocs
+                              ? 'bg-red-600 hover:bg-red-700 text-white'
+                              : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                          }`}
+                        >
+                          {en.ocs ? 'Clear' : 'Flag OCS'}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {race.individual_recall && (
+                  <button
+                    onClick={clearRecall}
+                    disabled={ocsBusy}
+                    className="w-full rounded-xl bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white font-semibold py-3 text-sm disabled:opacity-50"
+                  >
+                    Clear individual recall (all boats)
+                  </button>
                 )}
               </div>
             </div>

@@ -28,6 +28,7 @@ import { StartCountdown } from '@/components/race/StartCountdown'
 import { MarkReachedBanner } from '@/components/race/MarkReachedBanner'
 import { FinishBanner } from '@/components/race/FinishBanner'
 import { ControlBanner } from '@/components/race/ControlBanner'
+import { RecallBanner } from '@/components/race/RecallBanner'
 import { useRaceProgress, type ProgressCourse } from '@/lib/useRaceProgress'
 
 // ── Types (mirrors the live page shapes) ───────────────────────────────────────
@@ -41,6 +42,8 @@ interface RaceData {
   race_status: string | null
   control_message: string | null
   control_message_at: string | null
+  // Committee-authoritative individual-recall flag for the whole fleet.
+  individual_recall: boolean | null
 }
 interface StartClass {
   id: string
@@ -75,6 +78,8 @@ interface EntryData {
   helm_name: string | null
   finish_time: string | null
   laps_completed: number
+  // Committee-set OCS flag for THIS boat (set by the OOD / auto pass in Race Centre).
+  ocs: boolean | null
 }
 
 // Mark rounding + finish detection are provided by the shared useRaceProgress
@@ -210,7 +215,7 @@ export default function TrackerPage() {
     const supabase = getBrowserClient()
     const { data: raceData, error: raceErr } = await supabase
       .from('races')
-      .select('id, name, entry_token, status, course_template_id, start_scheduled_at, race_status, control_message, control_message_at')
+      .select('id, name, entry_token, status, course_template_id, start_scheduled_at, race_status, control_message, control_message_at, individual_recall')
       .eq('entry_token', token)
       .single()
 
@@ -290,7 +295,7 @@ export default function TrackerPage() {
     // Find this device/member's entry (by user_id if logged in, else participant_id).
     let entryQuery = supabase
       .from('race_entries')
-      .select('id, helm_name, finish_time, laps_completed')
+      .select('id, helm_name, finish_time, laps_completed, ocs')
       .eq('race_id', r.id)
       .limit(1)
     entryQuery = user
@@ -496,6 +501,25 @@ export default function TrackerPage() {
     return () => { supabase.removeChannel(channel) }
   }, [race?.id])
 
+  // ── Realtime: watch THIS boat's entry so the committee's OCS flag (set from the
+  //    Race Centre auto-detection / manual override) appears live here ──────────
+  useEffect(() => {
+    if (!entry?.id) return
+    const supabase = getBrowserClient()
+    const channel = supabase
+      .channel(`entry:${entry.id}:tracker`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'race_entries', filter: `id=eq.${entry.id}` },
+        (payload) => {
+          const n = payload.new as Partial<EntryData>
+          setEntry((e) => (e ? { ...e, ...n } : e))
+        },
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [entry?.id])
+
   // Whether the start gun has fired (sped up in the simulator so it's testable).
   const [raceStarted, setRaceStarted] = useState(false)
   useEffect(() => {
@@ -545,12 +569,19 @@ export default function TrackerPage() {
         : { dot: 'bg-amber-400', label: 'Waiting for GPS…', ring: 'ring-amber-400' }
 
   const abandoned = race?.race_status === 'abandoned'
+  // Committee-authoritative individual recall broadcast (see RecallBanner).
+  const iAmOcs = entry?.ocs === true
+  const recallActive = race?.individual_recall === true
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col">
       {/* Race Control broadcast banner (postponed / abandoned) — live via the
           races-row realtime subscription; visually distinct from mark/finish. */}
       <ControlBanner raceStatus={race?.race_status} startMs={startMs} />
+
+      {/* Committee individual-recall / OCS broadcast — hard red if THIS boat is
+          OCS, subtle note if a recall is in effect but we're clear. Live. */}
+      {!finished && <RecallBanner iAmOcs={iAmOcs} recallActive={recallActive} />}
 
       {/* Training-mode banner */}
       {isSim && (
