@@ -616,16 +616,21 @@ export default function RaceCentrePage() {
   const cleanNotes = stripStartTimeLine(race?.notes ?? null)
   const raceIsOn = race?.status === 'live' || race?.status === 'confirmed'
 
-  // Pre-filled no-login tracking link carrying the member's details in the URL.
-  const goLink = (() => {
+  // Pre-filled no-login join link carrying the member's details in the URL. It
+  // lands on the SINGLE canonical race screen (/race/live) for everyone. Passing
+  // ?mode=tracker opts into the map-less beacon variant instead.
+  function buildGoLink(mode?: 'tracker'): string {
     if (!race) return `/race/go/${token}`
     const qs = new URLSearchParams()
     if (myBoat?.boat_name) qs.set('boat', myBoat.boat_name)
     if (myBoat?.sail_number) qs.set('sail', myBoat.sail_number)
     if (myName) qs.set('helm', myName)
+    if (mode) qs.set('mode', mode)
     const q = qs.toString()
     return `/race/go/${race.entry_token}${q ? `?${q}` : ''}`
-  })()
+  }
+  const goLink = buildGoLink()
+  const trackerLink = buildGoLink('tracker')
 
   // ── Text instructions ──────────────────────────────────────────────────────
 
@@ -861,18 +866,18 @@ export default function RaceCentrePage() {
           {raceIsOn ? (
             <div className="grid sm:grid-cols-2 gap-3">
               <Link
-                href={`/race/live/${race.entry_token}`}
+                href={user ? `/race/live/${race.entry_token}` : goLink}
                 className="inline-flex flex-col items-center justify-center gap-1 rounded-lg bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold px-6 py-4 text-base transition-colors"
               >
                 <span>📱 Full Race Nav</span>
                 <span className="text-xs font-normal opacity-80">Map, marks, countdown &amp; instruments</span>
               </Link>
               <Link
-                href={goLink}
+                href={trackerLink}
                 className="inline-flex flex-col items-center justify-center gap-1 rounded-lg bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white font-semibold px-6 py-4 text-base transition-colors"
               >
                 <span>📡 Tracker Only</span>
-                <span className="text-xs font-normal opacity-80">Beacon mode — details pre-filled</span>
+                <span className="text-xs font-normal opacity-80">Beacon mode — same countdown, marks &amp; finish, no map</span>
               </Link>
             </div>
           ) : (

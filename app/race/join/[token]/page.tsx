@@ -1031,8 +1031,8 @@ export default function RaceJoinPage() {
                       <Button size="lg" className="w-full">🎯 Go to Race Centre</Button>
                     </Link>
                     {successEntry.role === 'helm' && (
-                      <Link href={`/race/tracker/${token}`}>
-                        <Button variant="secondary" size="lg" className="w-full">📡 Start tracking now</Button>
+                      <Link href={`/race/live/${token}`}>
+                        <Button variant="secondary" size="lg" className="w-full">📱 Start racing now</Button>
                       </Link>
                     )}
                     {race?.club?.invite_code && (

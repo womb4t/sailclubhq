@@ -224,8 +224,12 @@ export default function RaceGoPage() {
       localStorage.setItem(`scq-entry-${race.id}`, entryId)
     }
 
-    // Hand off to the tracker.
-    router.push(`/race/tracker/${token}`)
+    // Hand off to the single canonical on-the-water race screen — identical for
+    // anonymous (participant_id) and logged-in (user_id) racers. `?mode=tracker`
+    // opts into the map-less beacon variant (same countdown/marks/finish) for
+    // sailors who navigate on their own instruments.
+    const dest = searchParams.get('mode') === 'tracker' ? 'tracker' : 'live'
+    router.push(`/race/${dest}/${token}`)
   }
 
   if (loading) {

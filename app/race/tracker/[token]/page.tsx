@@ -22,8 +22,12 @@ import {
   cacheRaceData,
   getCachedRaceByToken,
 } from '@/lib/offline-gps'
-import { GpsSimulator, type SimCourse } from '@/lib/gps-simulator'
+import { GpsSimulator, type SimCourse, SIM_SPEED_MULTIPLIER } from '@/lib/gps-simulator'
 import { BoatIdentityNudge } from '@/components/BoatIdentityNudge'
+import { StartCountdown } from '@/components/race/StartCountdown'
+import { MarkReachedBanner } from '@/components/race/MarkReachedBanner'
+import { FinishBanner } from '@/components/race/FinishBanner'
+import { useRaceProgress, type ProgressCourse } from '@/lib/useRaceProgress'
 
 // ── Types (mirrors the live page shapes) ───────────────────────────────────────
 interface RaceData {
@@ -32,6 +36,7 @@ interface RaceData {
   entry_token: string
   status: string
   course_template_id: string | null
+  start_scheduled_at: string | null
 }
 interface StartClass {
   id: string
@@ -68,40 +73,8 @@ interface EntryData {
   laps_completed: number
 }
 
-// Mark-rounding zone: ~25 m wide (a 12.5 m radius circle around the mark).
-// 1 nautical mile = 1852 m, so 12.5 m = 0.00675 nm.
-const MARK_ROUNDING_NM = 12.5 / 1852
-
-// ── Geometry (self-contained; nm distance + segment intersection) ──────────────
-function haversineNm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 3440.065 // nautical miles
-  const dLat = ((lat2 - lat1) * Math.PI) / 180
-  const dLon = ((lon2 - lon1) * Math.PI) / 180
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) ** 2
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-}
-
-function linesIntersect(
-  p1: [number, number],
-  p2: [number, number],
-  p3: [number, number],
-  p4: [number, number],
-): boolean {
-  const d = (a: [number, number], b: [number, number], c: [number, number]) =>
-    (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
-  const d1 = d(p3, p4, p1)
-  const d2 = d(p3, p4, p2)
-  const d3 = d(p1, p2, p3)
-  const d4 = d(p1, p2, p4)
-  return (
-    ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
-    ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
-  )
-}
+// Mark rounding + finish detection are provided by the shared useRaceProgress
+// hook so this tracker behaves IDENTICALLY to the Nav screen (and the sim).
 
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function TrackerPage() {
@@ -136,12 +109,6 @@ export default function TrackerPage() {
   const [recordedCount, setRecordedCount] = useState(0)
   const [unsyncedCount, setUnsyncedCount] = useState(0)
   const [isOnline, setIsOnline] = useState(true)
-  const [finished, setFinished] = useState(false)
-  const [finishTime, setFinishTime] = useState<string | null>(null)
-  const [countdown, setCountdown] = useState<string | null>(null)
-  // Transient "mark reached" announcement so the helm can aim for the next mark.
-  const [markReached, setMarkReached] = useState<{ reached: string; next: string | null } | null>(null)
-  const markReachedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Refs for the GPS closure (avoid stale state)
   const courseRef = useRef<CourseData | null>(null)
@@ -150,10 +117,6 @@ export default function TrackerPage() {
   const userRef = useRef<{ id: string } | null>(null)
   const simModeRef = useRef(false)
   const startClassesRef = useRef<StartClass[]>([])
-  const prevPosRef = useRef<{ lat: number; lon: number } | null>(null)
-  const nextMarkIndexRef = useRef(0)
-  const currentLapRef = useRef(1)
-  const finishedRef = useRef(false)
 
   useEffect(() => { courseRef.current = course }, [course])
   useEffect(() => { raceRef.current = race }, [race])
@@ -162,8 +125,48 @@ export default function TrackerPage() {
   useEffect(() => { simModeRef.current = isSim }, [isSim])
   useEffect(() => { entryRef.current = entry }, [entry])
   useEffect(() => { startClassesRef.current = startClasses }, [startClasses])
-  useEffect(() => { finishedRef.current = finished }, [finished])
-  useEffect(() => () => { if (markReachedTimerRef.current) clearTimeout(markReachedTimerRef.current) }, [])
+
+  // ── Synchronised start time + shared race progress ───────────────────────
+  const startTimeIso = race?.start_scheduled_at ?? startClasses[0]?.start_time ?? null
+  const startMs = startTimeIso ? new Date(startTimeIso).getTime() : null
+  const warningMins = startClasses[0]?.sequence_warning_mins ?? 5
+
+  const progressCourse: ProgressCourse | null = course
+  const {
+    markReached,
+    finished,
+    finishTime,
+    elapsedSeconds,
+    processFix: progressFix,
+    setFinishedExternally,
+  } = useRaceProgress(progressCourse, {
+    startTimeIso,
+    onMarkRounded: (nextMarkIndex, currentLap) => {
+      // Persist progress for live standings (not in training mode).
+      const e = entryRef.current
+      if (e && !simModeRef.current && navigator.onLine) {
+        const supabase = getBrowserClient()
+        void supabase
+          .from('race_entries')
+          .update({ last_mark_index: nextMarkIndex, laps_completed: currentLap - 1 })
+          .eq('id', e.id)
+      }
+    },
+    onFinish: (ft, elapsed) => {
+      const e = entryRef.current
+      if (e && navigator.onLine && !simModeRef.current) {
+        const supabase = getBrowserClient()
+        void supabase
+          .from('race_entries')
+          .update({
+            finish_time: ft,
+            elapsed_seconds: elapsed,
+            laps_completed: courseRef.current?.laps ?? 1,
+          })
+          .eq('id', e.id)
+      }
+    },
+  })
 
   // ── Identity gate ──────────────────────────────────────────────────────────
   // Logged-in members are fine. Anonymous devices need a participant id (set by
@@ -203,7 +206,7 @@ export default function TrackerPage() {
     const supabase = getBrowserClient()
     const { data: raceData, error: raceErr } = await supabase
       .from('races')
-      .select('id, name, entry_token, status, course_template_id')
+      .select('id, name, entry_token, status, course_template_id, start_scheduled_at')
       .eq('entry_token', token)
       .single()
 
@@ -294,8 +297,7 @@ export default function TrackerPage() {
       setEntry(entryData as EntryData)
       loadedEntry = entryData as EntryData
       if ((entryData as EntryData).finish_time) {
-        setFinished(true)
-        setFinishTime((entryData as EntryData).finish_time)
+        setFinishedExternally((entryData as EntryData).finish_time!)
       }
     }
 
@@ -329,8 +331,7 @@ export default function TrackerPage() {
       if (d.entry) {
         setEntry(d.entry)
         if (d.entry.finish_time) {
-          setFinished(true)
-          setFinishTime(d.entry.finish_time)
+          setFinishedExternally(d.entry.finish_time)
         }
       }
       setLoading(false)
@@ -340,89 +341,9 @@ export default function TrackerPage() {
     }
   }
 
-  // ── Background finish detection (no UI, results only) ──────────────────────────
-  const handleGpsBackground = useCallback((lat: number, lon: number, speed: number) => {
-    const c = courseRef.current
-    if (!c || finishedRef.current) return
-    const marks = c.marks
-    const nmi = nextMarkIndexRef.current
-    const lap = currentLapRef.current
-
-    // Advance through marks (buzz + announce on rounding).
-    if (nmi < marks.length) {
-      const nextMark = marks[nmi]
-      const dist = haversineNm(lat, lon, nextMark.lat, nextMark.lon)
-      if (dist < MARK_ROUNDING_NM) {
-        if (typeof navigator.vibrate === 'function') navigator.vibrate([100, 50, 100])
-        const isLast = nmi === marks.length - 1
-        if (isLast && lap < c.laps) {
-          currentLapRef.current = lap + 1
-          nextMarkIndexRef.current = 0
-        } else if (isLast && lap >= c.laps) {
-          nextMarkIndexRef.current = marks.length
-        } else {
-          nextMarkIndexRef.current = nmi + 1
-        }
-        // Announce: which mark was reached + the next one to aim for.
-        const reachedName = nextMark.name || `Mark ${nmi + 1}`
-        const upcoming =
-          nextMarkIndexRef.current < marks.length
-            ? marks[nextMarkIndexRef.current].name || `Mark ${nextMarkIndexRef.current + 1}`
-            : 'Finish'
-        setMarkReached({ reached: reachedName, next: upcoming })
-        if (markReachedTimerRef.current) clearTimeout(markReachedTimerRef.current)
-        markReachedTimerRef.current = setTimeout(() => setMarkReached(null), 6000)
-        // Persist progress for live standings (not in training mode).
-        const e = entryRef.current
-        if (e && !simModeRef.current && navigator.onLine) {
-          const supabase = getBrowserClient()
-          void supabase
-            .from('race_entries')
-            .update({ last_mark_index: nextMarkIndexRef.current, laps_completed: currentLapRef.current - 1 })
-            .eq('id', e.id)
-        }
-      }
-    }
-
-    // Finish-line crossing once all marks rounded.
-    if (prevPosRef.current && nextMarkIndexRef.current >= marks.length) {
-      const finish = c.finish_at_start
-        ? c.start_line_lat1 != null
-          ? { lat1: c.start_line_lat1, lng1: c.start_line_lng1!, lat2: c.start_line_lat2!, lng2: c.start_line_lng2! }
-          : null
-        : c.finish_line_lat1 != null
-          ? { lat1: c.finish_line_lat1, lng1: c.finish_line_lng1!, lat2: c.finish_line_lat2!, lng2: c.finish_line_lng2! }
-          : null
-      if (finish && speed > 0.5) {
-        const crossed = linesIntersect(
-          [prevPosRef.current.lat, prevPosRef.current.lon],
-          [lat, lon],
-          [finish.lat1, finish.lng1],
-          [finish.lat2, finish.lng2],
-        )
-        if (crossed) {
-          const ft = new Date().toISOString()
-          setFinished(true)
-          setFinishTime(ft)
-          if (typeof navigator.vibrate === 'function') navigator.vibrate([200, 100, 200, 100, 500])
-          const e = entryRef.current
-          // TRAINING MODE: never write a finish time to the real DB.
-          if (e && navigator.onLine && !simModeRef.current) {
-            const supabase = getBrowserClient()
-            const startedAt = startClassesRef.current[0]?.start_time ?? null
-            void supabase
-              .from('race_entries')
-              .update({
-                finish_time: ft,
-                elapsed_seconds: startedAt ? (Date.now() - new Date(startedAt).getTime()) / 1000 : null,
-                laps_completed: c.laps,
-              })
-              .eq('id', e.id)
-          }
-        }
-      }
-    }
-  }, [])
+  // Mark rounding + finish detection now live in useRaceProgress (progressFix),
+  // shared verbatim with the Nav screen. Persistence side-effects are wired via
+  // the hook's onMarkRounded / onFinish callbacks above.
 
   // Shared fix handler: update UI, queue (unless simulating), run bg detection.
   const processFix = useCallback(
@@ -453,10 +374,9 @@ export default function TrackerPage() {
         setRecordedCount((n) => n + 1)
       }
 
-      handleGpsBackground(lat, lon, spd)
-      prevPosRef.current = { lat, lon }
+      progressFix(lat, lon, spd)
     },
-    [isSim, handleGpsBackground],
+    [isSim, progressFix],
   )
 
   // ── GPS watch (real) OR simulator (training) + offline queue ─────────────────────
@@ -480,7 +400,7 @@ export default function TrackerPage() {
       }
       const sim = new GpsSimulator(
         simCourse,
-        { mode: 'auto', tickMs: 1000, speedMultiplier: 8, boatSpeedKts: 6 },
+        { mode: 'auto', tickMs: 1000, speedMultiplier: SIM_SPEED_MULTIPLIER, boatSpeedKts: 6 },
         (p) => processFix(p.lat, p.lon, p.speed_kts, Math.round(p.heading), p.accuracy_m, p.recorded_at),
       )
       simRef.current = sim
@@ -553,24 +473,41 @@ export default function TrackerPage() {
     }
   }, [])
 
-  // ── Countdown to first start ────────────────────────────────────────────────────
+  // ── Realtime: watch THIS race row so the committee's synchronised start gun
+  //    (races.start_scheduled_at, set from Race Control) appears live here ──────
   useEffect(() => {
-    if (startClasses.length === 0) return
-    const startTime = new Date(startClasses[0].start_time).getTime()
-    const tick = () => {
-      const diff = startTime - Date.now()
-      if (diff <= 0) {
-        setCountdown(null)
-        return
+    if (!race?.id) return
+    const supabase = getBrowserClient()
+    const channel = supabase
+      .channel(`race:${race.id}:tracker`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'races', filter: `id=eq.${race.id}` },
+        (payload) => {
+          const n = payload.new as Partial<RaceData>
+          setRace((r) => (r ? { ...r, ...n } : r))
+        },
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [race?.id])
+
+  // Whether the start gun has fired (sped up in the simulator so it's testable).
+  const [raceStarted, setRaceStarted] = useState(false)
+  useEffect(() => {
+    if (startMs == null) { setRaceStarted(false); return }
+    const speed = isSim ? SIM_SPEED_MULTIPLIER : 1
+    const anchorReal = Date.now()
+    const anchorSim = Date.now()
+    const iv = setInterval(() => {
+      const nowMs = speed === 1 ? Date.now() : anchorSim + (Date.now() - anchorReal) * speed
+      if (startMs - nowMs <= 0) {
+        setRaceStarted(true)
+        clearInterval(iv)
       }
-      const mins = Math.floor(diff / 60000)
-      const secs = Math.floor((diff % 60000) / 1000)
-      setCountdown(`${mins}:${String(secs).padStart(2, '0')}`)
-    }
-    tick()
-    const iv = setInterval(tick, 1000)
+    }, 200)
     return () => clearInterval(iv)
-  }, [startClasses])
+  }, [startMs, isSim])
 
   async function stopTracking() {
     // One final flush attempt before leaving.
@@ -626,15 +563,8 @@ export default function TrackerPage() {
         </div>
       )}
 
-      {/* Mark-reached announcement */}
-      {markReached && !finished && (
-        <div className="bg-green-500 text-slate-900 text-center py-3 px-3 shadow-lg">
-          <div className="text-base font-extrabold uppercase tracking-wide">✅ Reached {markReached.reached}</div>
-          {markReached.next && (
-            <div className="text-sm font-semibold mt-0.5">→ Now head for {markReached.next}</div>
-          )}
-        </div>
-      )}
+      {/* Mark-reached announcement — shared banner (identical on Nav / Sim) */}
+      {!finished && <MarkReachedBanner markReached={markReached} variant="banner" />}
 
       {/* Header */}
       <div className="px-5 pt-5 pb-3">
@@ -648,28 +578,13 @@ export default function TrackerPage() {
       {/* Big status */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 gap-8">
         {finished ? (
-          <div className="text-center">
-            <div className="text-6xl mb-3">🏁</div>
-            <div className="text-3xl font-bold text-green-400">FINISHED</div>
-            {finishTime && (
-              <div className="text-sm opacity-70 mt-2">
-                {new Date(finishTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-              </div>
-            )}
-            {/* Register nudge — anonymous racers only */}
-            {!user && (
-              <div className="mt-6 rounded-xl bg-white/10 px-5 py-4 max-w-xs">
-                <p className="text-sm font-semibold">Want to keep your results?</p>
-                <p className="text-xs opacity-70 mt-1">Register with your boat to get detailed results, your track, and race history.</p>
-                <a
-                  href={`/register?race=${token}`}
-                  className="inline-block mt-3 rounded-lg bg-white text-slate-900 font-semibold px-4 py-2 text-sm"
-                >
-                  Register &amp; save my results
-                </a>
-              </div>
-            )}
-          </div>
+          <FinishBanner
+            finishTime={finishTime}
+            elapsedSeconds={elapsedSeconds}
+            variant="inline"
+            showRegisterNudge={!user}
+            registerHref={`/register?race=${token}`}
+          />
         ) : (
           <>
             <div className={`flex items-center gap-3 rounded-full ring-2 ${statusMeta.ring} px-5 py-3`}>
@@ -677,10 +592,14 @@ export default function TrackerPage() {
               <span className="text-lg font-semibold">{statusMeta.label}</span>
             </div>
 
-            {countdown && (
-              <div className="text-center">
-                <div className="text-xs uppercase tracking-widest opacity-60">Start in</div>
-                <div className="text-5xl font-mono font-bold tabular-nums">{countdown}</div>
+            {!raceStarted && startMs != null && (
+              <div className="w-full max-w-sm">
+                <StartCountdown
+                  startMs={startMs}
+                  warningMins={warningMins}
+                  speedMultiplier={isSim ? SIM_SPEED_MULTIPLIER : 1}
+                  compact
+                />
               </div>
             )}
 

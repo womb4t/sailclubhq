@@ -14,17 +14,17 @@ import {
   getUnsyncedCount,
   registerReconnectFlush,
 } from '@/lib/offline-gps'
-import { GpsSimulator, type SimCourse } from '@/lib/gps-simulator'
+import { GpsSimulator, type SimCourse, SIM_SPEED_MULTIPLIER } from '@/lib/gps-simulator'
 import { useFleetPositions } from '@/lib/useFleetPositions'
 import { BoatIdentityNudge } from '@/components/BoatIdentityNudge'
 import type { RaceMapProps, RaceMapMark } from '@/components/map/RaceMap'
+import { StartCountdown } from '@/components/race/StartCountdown'
+import { MarkReachedBanner } from '@/components/race/MarkReachedBanner'
+import { FinishBanner } from '@/components/race/FinishBanner'
+import { useRaceProgress, type ProgressCourse } from '@/lib/useRaceProgress'
 
 // Dynamically import to avoid SSR issues with Leaflet
 const RaceMap = dynamic(() => import('@/components/map/RaceMap'), { ssr: false })
-
-// Mark-rounding zone: ~25 m wide (a 12.5 m radius circle around the mark).
-// 1 nautical mile = 1852 m, so 12.5 m = 0.00675 nm.
-const MARK_ROUNDING_NM = 12.5 / 1852
 
 // ── Geo maths ─────────────────────────────────────────────────────────────────
 
@@ -77,17 +77,6 @@ function compassPoint(deg: number): string {
 function formatNm(nm: number): string {
   if (nm < 0.1) return `${Math.round(nm * 1852)}m`
   return `${nm.toFixed(2)}nm`
-}
-
-/** Format elapsed seconds as H:MM:SS or MM:SS. */
-function formatElapsedTime(seconds: number): string {
-  const s = Math.max(0, Math.round(seconds))
-  const h = Math.floor(s / 3600)
-  const m = Math.floor((s % 3600) / 60)
-  const sec = s % 60
-  const mm = String(m).padStart(2, '0')
-  const ss = String(sec).padStart(2, '0')
-  return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`
 }
 
 // ── Audio helpers ─────────────────────────────────────────────────────────────
@@ -179,6 +168,7 @@ interface RaceData {
   name: string
   entry_token: string
   status: string
+  start_scheduled_at: string | null
 }
 
 interface EntryData {
@@ -187,8 +177,6 @@ interface EntryData {
   finish_time: string | null
   laps_completed: number
 }
-
-type CountdownPhase = 'pre-warning' | 'warning' | 'prep' | 'start'
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -220,27 +208,18 @@ export default function LiveRacePage() {
 
   // Internal refs for GPS callback (avoid stale closures)
   const courseRef = useRef<CourseData | null>(null)
-  const nextMarkIndexRef = useRef(0)
-  const currentLapRef = useRef(1)
-  const finishedRef = useRef(false)
   const entryRef = useRef<EntryData | null>(null)
   const startClassesRef = useRef<StartClass[]>([])
   const raceRef = useRef<RaceData | null>(null)
   const userRef = useRef<{ id: string } | null>(null)
+  const participantRef = useRef<string | null>(null)
 
   // Offline / sync state
   const [isOnline, setIsOnline] = useState(true)
   const [unsyncedCount, setUnsyncedCount] = useState(0)
 
-  // Race progress state
-  const [nextMarkIndex, setNextMarkIndex] = useState(0)
-  const [currentLap, setCurrentLap] = useState(1)
-  // Transient "mark reached" announcement so the helm can aim for the next mark.
-  const [markReached, setMarkReached] = useState<{ reached: string; next: string | null } | null>(null)
-  const markReachedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [finished, setFinished] = useState(false)
-  const [finishTime, setFinishTime] = useState<string | null>(null)
-  const [elapsedSeconds, setElapsedSeconds] = useState<number | null>(null)
+  // Race progress (mark rounding + finish) is owned by the shared hook so Nav,
+  // Tracker and the Simulator context all behave identically. See wiring below.
 
   // OCS (On Course Side) detection
   const [ocs, setOcs] = useState(false)
@@ -259,19 +238,15 @@ export default function LiveRacePage() {
   const [batteryDismissed, setBatteryDismissed] = useState(false)
   const [mapCenter, setMapCenter] = useState<[number, number]>([51.5, -0.1])
 
-  // Countdown
-  const [countdown, setCountdown] = useState<string | null>(null)
-  const [countdownPhase, setCountdownPhase] = useState<CountdownPhase>('pre-warning')
+  // Countdown — driven by the shared synchronised start time (races.start_scheduled_at,
+  // falling back to the first start class). The StartCountdown component owns the
+  // display + audio; this page only needs to know whether the gun has fired.
   const [raceStarted, setRaceStarted] = useState(false)
   const raceStartedRef = useRef(false)
   const audioFiredRef = useRef<Set<string>>(new Set())
 
   // Sync refs with state
   useEffect(() => { courseRef.current = course }, [course])
-  useEffect(() => { nextMarkIndexRef.current = nextMarkIndex }, [nextMarkIndex])
-  useEffect(() => () => { if (markReachedTimerRef.current) clearTimeout(markReachedTimerRef.current) }, [])
-  useEffect(() => { currentLapRef.current = currentLap }, [currentLap])
-  useEffect(() => { finishedRef.current = finished }, [finished])
   useEffect(() => { ocsRef.current = ocs }, [ocs])
   useEffect(() => { raceStartedRef.current = raceStarted }, [raceStarted])
 
@@ -289,6 +264,7 @@ export default function LiveRacePage() {
   useEffect(() => { startClassesRef.current = startClasses }, [startClasses])
   useEffect(() => { raceRef.current = race }, [race])
   useEffect(() => { userRef.current = user ? { id: user.id } : null }, [user])
+  useEffect(() => { participantRef.current = participantId }, [participantId])
   useEffect(() => { isSimRef.current = isSim }, [isSim])
 
   // Fleet positions — only subscribe while the whole-course view is open.
@@ -305,6 +281,40 @@ export default function LiveRacePage() {
     })
   }, [])
 
+  // ── Synchronised start time ──────────────────────────────────────────────────
+  // Prefer the absolute committee start gun (races.start_scheduled_at, set from
+  // Race Control + pushed via realtime), falling back to the first start class.
+  const startTimeIso = race?.start_scheduled_at ?? startClasses[0]?.start_time ?? null
+  const startMs = startTimeIso ? new Date(startTimeIso).getTime() : null
+  const warningMins = startClasses[0]?.sequence_warning_mins ?? 5
+
+  // ── Shared race progress (mark rounding + finish) ────────────────────────────
+  const progressCourse: ProgressCourse | null = course
+  const {
+    nextMarkIndex,
+    currentLap,
+    markReached,
+    finished,
+    finishTime,
+    elapsedSeconds,
+    processFix: progressFix,
+    setFinishedExternally,
+  } = useRaceProgress(progressCourse, {
+    startTimeIso,
+    onFinish: (ft, elapsed) => {
+      playLongTone(1500)
+      if (entryRef.current && !isSimRef.current) {
+        const supabase = getBrowserClient()
+        supabase.from('race_entries').update({
+          finish_time: ft,
+          elapsed_seconds: elapsed,
+          laps_completed: courseRef.current?.laps ?? 1,
+        }).eq('id', entryRef.current.id)
+      }
+    },
+  })
+  void setFinishedExternally
+
   // ── Load race data ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!token) return
@@ -317,7 +327,7 @@ export default function LiveRacePage() {
 
     const { data: raceData, error: raceErr } = await supabase
       .from('races')
-      .select('id, name, entry_token, status, course_template_id')
+      .select('id, name, entry_token, status, course_template_id, start_scheduled_at')
       .eq('entry_token', token)
       .single()
 
@@ -409,19 +419,25 @@ export default function LiveRacePage() {
       }
     }
 
-    // Fetch user's entry
-    if (user) {
-      const { data: entryData } = await supabase
+    // Fetch this racer's entry — by user_id if logged in, else by the anonymous
+    // device participant_id. Both are fully supported on this canonical screen.
+    if (user || participantId) {
+      let entryQuery = supabase
         .from('race_entries')
         .select('id, helm_name, finish_time, laps_completed')
         .eq('race_id', raceData.id)
-        .eq('user_id', user.id)
         .limit(1)
-        .maybeSingle()
+      entryQuery = user
+        ? entryQuery.eq('user_id', user.id)
+        : entryQuery.eq('participant_id', participantId!)
+      const { data: entryData } = await entryQuery.maybeSingle()
 
       if (entryData) {
         setEntry(entryData as EntryData)
         loadedEntry = entryData as EntryData
+        if ((entryData as EntryData).finish_time) {
+          setFinishedExternally((entryData as EntryData).finish_time!)
+        }
       }
     }
 
@@ -497,7 +513,6 @@ export default function LiveRacePage() {
             setOcsCount(0)
             setMultipleOcsWarning(false)
             setRaceStarted(false)
-            setCountdown(null)
             // Reset audio so start signals fire again
             audioFiredRef.current = new Set()
             playBeeps(2, 400, 200)
@@ -505,7 +520,6 @@ export default function LiveRacePage() {
           } else if (!updated.general_recall && generalRecall) {
             // Recall cleared — new start set
             setGeneralRecall(false)
-            setCountdownPhase('pre-warning')
           }
         },
       )
@@ -514,6 +528,25 @@ export default function LiveRacePage() {
     return () => { supabase.removeChannel(channel) }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [race])
+
+  // ── Realtime: watch THIS race row so the committee's synchronised start gun
+  //    (races.start_scheduled_at, set from Race Control) appears live here ──────
+  useEffect(() => {
+    if (!race?.id) return
+    const supabase = getBrowserClient()
+    const channel = supabase
+      .channel(`race:${race.id}:live`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'races', filter: `id=eq.${race.id}` },
+        (payload) => {
+          const n = payload.new as Partial<RaceData>
+          setRace((r) => (r ? { ...r, ...n } : r))
+        },
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [race?.id])
 
   // ── GPS tracking (real) OR simulator (training) ─────────────────────────────
   useEffect(() => {
@@ -534,7 +567,7 @@ export default function LiveRacePage() {
       }
       const sim = new GpsSimulator(
         simCourse,
-        { mode: 'auto', tickMs: 1000, speedMultiplier: 8, boatSpeedKts: 6 },
+        { mode: 'auto', tickMs: 1000, speedMultiplier: SIM_SPEED_MULTIPLIER, boatSpeedKts: 6 },
         (p) => {
           const gpsPos: GpsPosition = {
             lat: p.lat,
@@ -549,6 +582,7 @@ export default function LiveRacePage() {
           setMapCenter([gpsPos.lat, gpsPos.lon])
           appendTrail(gpsPos.lat, gpsPos.lon)
           handleGpsUpdate(gpsPos)
+          progressFix(gpsPos.lat, gpsPos.lon, gpsPos.speed_kts)
           prevPosRef.current = gpsPos
         },
       )
@@ -582,10 +616,13 @@ export default function LiveRacePage() {
         appendTrail(gpsPos.lat, gpsPos.lon)
 
         // Offline-first: queue every fix to IndexedDB (survives signal loss).
-        if (raceRef.current && userRef.current) {
+        // Works for BOTH logged-in members (user_id) and anonymous click-and-go
+        // racers (participant_id) — identical on-water experience either way.
+        if (raceRef.current && (userRef.current || participantRef.current)) {
           void savePosition({
             raceId: raceRef.current.id,
-            userId: userRef.current.id,
+            userId: userRef.current?.id ?? null,
+            participantId: userRef.current ? null : participantRef.current,
             entryId: entryRef.current?.id ?? null,
             lat: gpsPos.lat,
             lon: gpsPos.lon,
@@ -597,6 +634,7 @@ export default function LiveRacePage() {
         }
 
         handleGpsUpdate(gpsPos)
+        progressFix(gpsPos.lat, gpsPos.lon, gpsPos.speed_kts)
         prevPosRef.current = gpsPos
       },
       (err) => {
@@ -612,7 +650,7 @@ export default function LiveRacePage() {
 
   // ── GPS batch flush (offline-first via IndexedDB queue) ──────────────────────
   useEffect(() => {
-    if (!race || !user || isSim) return
+    if (!race || (!user && !participantId) || isSim) return
     const interval = setInterval(() => {
       void flushPositions().then(() => getUnsyncedCount().then(setUnsyncedCount))
     }, 30000)
@@ -623,7 +661,7 @@ export default function LiveRacePage() {
       clearInterval(interval)
       unregister()
     }
-  }, [race, user])
+  }, [race, user, participantId, isSim])
 
   // ── Online/offline indicator ────────────────────────────────────────────────
   useEffect(() => {
@@ -638,50 +676,17 @@ export default function LiveRacePage() {
     }
   }, [])
 
-  // ── GPS update handler (uses refs to avoid stale closures) ────────────────
+  // Keep a ref of the finished flag (owned by the shared progress hook) so the
+  // OCS callback below can early-out without re-subscribing.
+  const finishedRef = useRef(false)
+  useEffect(() => { finishedRef.current = finished }, [finished])
+
+  // ── OCS handler (mark-rounding + finish now live in useRaceProgress) ──────
+  // OCS (On Course Side) detection is page-specific to the Nav screen and stays
+  // here; the shared hook handles rounding + finish identically for all screens.
   const handleGpsUpdate = useCallback((pos: GpsPosition) => {
     const c = courseRef.current
     if (!c || finishedRef.current) return
-
-    const marks = c.marks
-    const totalLaps = c.laps
-    const nmi = nextMarkIndexRef.current
-    const lap = currentLapRef.current
-
-    // Mark rounding detection
-    if (nmi < marks.length) {
-      const nextMark = marks[nmi]
-      const dist = haversineNm(pos.lat, pos.lon, nextMark.lat, nextMark.lon)
-
-      if (dist < MARK_ROUNDING_NM) {
-        if (typeof navigator.vibrate === 'function') navigator.vibrate([100, 50, 100])
-
-        const isLastMark = nmi === marks.length - 1
-        let newIndex: number
-
-        if (isLastMark && lap < totalLaps) {
-          setCurrentLap(prev => prev + 1)
-          newIndex = 0
-          setNextMarkIndex(0)
-        } else if (isLastMark && lap >= totalLaps) {
-          newIndex = marks.length // targeting finish
-          setNextMarkIndex(marks.length)
-        } else {
-          newIndex = nmi + 1
-          setNextMarkIndex(prev => prev + 1)
-        }
-
-        // Announce: which mark was reached + the next one to aim for.
-        const reachedName = nextMark.name || `Mark ${nmi + 1}`
-        const upcoming =
-          newIndex < marks.length
-            ? marks[newIndex].name || `Mark ${newIndex + 1}`
-            : 'Finish'
-        setMarkReached({ reached: reachedName, next: upcoming })
-        if (markReachedTimerRef.current) clearTimeout(markReachedTimerRef.current)
-        markReachedTimerRef.current = setTimeout(() => setMarkReached(null), 6000)
-      }
-    }
 
     // OCS recovery — boat re-crosses start line from pre-start side after being OCS
     if (ocsRef.current && prevPosRef.current && c.start_line_lat1 != null) {
@@ -713,138 +718,55 @@ export default function LiveRacePage() {
         }
       }
     }
-
-    // Finish line crossing (only once all marks done)
-    if (prevPosRef.current && nmi >= marks.length) {
-      const finish = c.finish_at_start
-        ? (c.start_line_lat1 != null ? {
-            lat1: c.start_line_lat1!, lng1: c.start_line_lng1!,
-            lat2: c.start_line_lat2!, lng2: c.start_line_lng2!,
-          } : null)
-        : (c.finish_line_lat1 != null ? {
-            lat1: c.finish_line_lat1!, lng1: c.finish_line_lng1!,
-            lat2: c.finish_line_lat2!, lng2: c.finish_line_lng2!,
-          } : null)
-
-      if (finish && pos.speed_kts > 0.5) {
-        const crossed = linesIntersect(
-          [prevPosRef.current.lat, prevPosRef.current.lon],
-          [pos.lat, pos.lon],
-          [finish.lat1, finish.lng1],
-          [finish.lat2, finish.lng2],
-        )
-
-        if (crossed) {
-          const ft = new Date().toISOString()
-          const startedAt = startClassesRef.current[0]?.start_time ?? null
-          const elapsed = startedAt ? (Date.now() - new Date(startedAt).getTime()) / 1000 : null
-          setFinished(true)
-          setFinishTime(ft)
-          setElapsedSeconds(elapsed)
-          playLongTone(1500)
-          if (typeof navigator.vibrate === 'function') navigator.vibrate([200, 100, 200, 100, 500])
-
-          if (entryRef.current && !isSimRef.current) {
-            const supabase = getBrowserClient()
-            supabase.from('race_entries').update({
-              finish_time: ft,
-              elapsed_seconds: elapsed,
-              laps_completed: totalLaps,
-            }).eq('id', entryRef.current.id)
-          }
-        }
-      }
-    }
   }, [])
 
-  // ── Start countdown ────────────────────────────────────────────────────────
+  // ── Start gun → raceStarted + OCS-at-start ──────────────────────────────────
+  // Display + audio are owned by <StartCountdown> (shared, synchronised). Here we
+  // only detect the moment the gun fires to flip into racing mode + run the OCS
+  // check. In the simulator the gun fires on the sped-up clock so the whole
+  // sequence + OCS behaviour is testable in seconds.
   useEffect(() => {
-    if (startClasses.length === 0) return
-
-    const firstClass = startClasses[0]
-    const startTime = new Date(firstClass.start_time).getTime()
+    if (startMs == null) return
+    const speed = isSim ? SIM_SPEED_MULTIPLIER : 1
+    const anchorReal = Date.now()
+    const anchorSim = Date.now()
 
     const interval = setInterval(() => {
-      const now = Date.now()
-      const diff = startTime - now
+      const nowMs = speed === 1 ? Date.now() : anchorSim + (Date.now() - anchorReal) * speed
+      const diff = startMs - nowMs
+      if (diff > 0) return
 
-      if (diff <= 0) {
-        setCountdown('GO!')
-        setRaceStarted(true)
-
-        if (!audioFiredRef.current.has('go')) {
-          audioFiredRef.current.add('go')
-          playLongTone(1200)
-
-          // OCS check at start time
-          const c = courseRef.current
-          const pos = prevPosRef.current
-          if (c && pos && c.start_line_lat1 != null && c.marks.length > 0) {
-            const firstMark = c.marks[0]
-            const onCourse = isOnCourseSide(
-              pos.lat, pos.lon,
-              c.start_line_lat1!, c.start_line_lng1!,
-              c.start_line_lat2!, c.start_line_lng2!,
-              firstMark.lat, firstMark.lon,
-            )
-            if (onCourse) {
-              setOcs(true)
-              if (typeof navigator.vibrate === 'function') navigator.vibrate([300, 100, 300, 100, 300])
-              // Update entry status
-              if (entryRef.current && !isSimRef.current) {
-                const supabase = getBrowserClient()
-                supabase.from('race_entries').update({ status: 'OCS' }).eq('id', entryRef.current.id)
-              }
-
-              // Count OCS boats for this race to detect general recall threshold
-              if (!isSimRef.current) checkOcsCount(firstClass.id)
+      setRaceStarted(true)
+      if (!audioFiredRef.current.has('go')) {
+        audioFiredRef.current.add('go')
+        // OCS check at start time
+        const c = courseRef.current
+        const pos = prevPosRef.current
+        if (c && pos && c.start_line_lat1 != null && c.marks.length > 0) {
+          const firstMark = c.marks[0]
+          const onCourse = isOnCourseSide(
+            pos.lat, pos.lon,
+            c.start_line_lat1!, c.start_line_lng1!,
+            c.start_line_lat2!, c.start_line_lng2!,
+            firstMark.lat, firstMark.lon,
+          )
+          if (onCourse) {
+            setOcs(true)
+            if (typeof navigator.vibrate === 'function') navigator.vibrate([300, 100, 300, 100, 300])
+            if (entryRef.current && !isSimRef.current) {
+              const supabase = getBrowserClient()
+              supabase.from('race_entries').update({ status: 'OCS' }).eq('id', entryRef.current.id)
             }
+            if (!isSimRef.current) checkOcsCount(startClassesRef.current[0]?.id ?? '')
           }
         }
-        return
       }
-
-      const totalSecs = Math.ceil(diff / 1000)
-      const mins = Math.floor(totalSecs / 60)
-      const secs = totalSecs % 60
-
-      // Under 10s: show a crisp tenths countdown for the gun (e.g. 5.3).
-      if (diff <= 10000) {
-        setCountdown((diff / 1000).toFixed(1))
-        setCountdownPhase('start')
-        // 5-4-3-2-1 beeps
-        const whole = Math.ceil(diff / 1000)
-        const key = `cd${whole}`
-        if (whole <= 5 && whole >= 1 && !audioFiredRef.current.has(key)) {
-          audioFiredRef.current.add(key)
-          playBeeps(1)
-        }
-        return
-      }
-
-      if (totalSecs === 60 && !audioFiredRef.current.has('1min')) {
-        audioFiredRef.current.add('1min')
-        playBeeps(1)
-      } else if (totalSecs === 30 && !audioFiredRef.current.has('30s')) {
-        audioFiredRef.current.add('30s')
-        playBeeps(3, 100, 100)
-      } else if (totalSecs === firstClass.sequence_warning_mins * 60 && !audioFiredRef.current.has('warning')) {
-        audioFiredRef.current.add('warning')
-        playBeeps(1)
-      }
-
-      const warnSecs = firstClass.sequence_warning_mins * 60
-      if (totalSecs > warnSecs) setCountdownPhase('pre-warning')
-      else if (totalSecs > warnSecs - 60) setCountdownPhase('warning')
-      else if (totalSecs > 60) setCountdownPhase('prep')
-      else setCountdownPhase('start')
-
-      setCountdown(`${mins}:${String(secs).padStart(2, '0')}`)
-
-    }, 100) // 100ms tick for a smooth, responsive sequence
+      clearInterval(interval)
+    }, 100)
 
     return () => clearInterval(interval)
-  }, [startClasses])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startMs, isSim])
 
   // ── OCS count check (query DB to see how many boats are OCS for this class) ─────
   async function checkOcsCount(classId: string) {
@@ -954,23 +876,10 @@ export default function LiveRacePage() {
   } : null
 
   // ── Status colours ─────────────────────────────────────────────────────────
-  const countdownColor: Record<CountdownPhase, string> = {
-    'pre-warning': 'text-white',
-    'warning': 'text-amber-400',
-    'prep': 'text-amber-300',
-    'start': 'text-green-400',
-  }
-
-  const countdownBg: Record<CountdownPhase, string> = {
-    'pre-warning': 'bg-gray-950',
-    'warning': 'bg-amber-950',
-    'prep': 'bg-amber-900',
-    'start': 'bg-green-950',
-  }
-
   const gpsColor = { waiting: 'bg-amber-400', active: 'bg-green-400', error: 'bg-red-500' }[gpsStatus]
   const gpsLabel = { waiting: 'Waiting for GPS…', active: 'GPS Active', error: 'GPS Error' }[gpsStatus]
-  const showCountdown = !raceStarted && countdown !== null && !finished
+  // Show the synchronised countdown until the gun fires (StartCountdown owns it).
+  const showCountdown = !raceStarted && startMs != null && !finished
   const isRacing = raceStarted
 
   // ── Loading / error ────────────────────────────────────────────────────────
@@ -1147,17 +1056,8 @@ export default function LiveRacePage() {
 
         {/* Next-mark detail now lives in the coral BTM header/strip above the map. */}
 
-        {/* Mark-reached flash — confirms rounding + points to the next mark */}
-        {markReached && !finished && (
-          <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1500] pointer-events-none">
-            <div className="bg-green-500 text-slate-900 rounded-xl px-4 py-2.5 shadow-2xl text-center border-2 border-green-300">
-              <div className="text-sm font-extrabold uppercase tracking-wide">✅ Reached {markReached.reached}</div>
-              {markReached.next && (
-                <div className="text-xs font-semibold mt-0.5">→ Now head for {markReached.next}</div>
-              )}
-            </div>
-          </div>
-        )}
+        {/* Mark-reached flash — shared banner (identical on Nav / Tracker / Sim) */}
+        {!finished && <MarkReachedBanner markReached={markReached} variant="floating" />}
 
         {/* General Recall overlay — shown when OOD triggers recall (Phase 3 sets via Realtime) */}
         {generalRecall && !finished && (
@@ -1196,61 +1096,28 @@ export default function LiveRacePage() {
           </div>
         )}
 
-        {/* Finished overlay */}
+        {/* Finished overlay — shared banner (identical on Nav / Tracker / Sim) */}
         {finished && (
-          <div className="absolute inset-0 z-[2000] flex items-center justify-center bg-black/80 px-6">
-            <div className="text-center space-y-3 px-8 py-10 bg-gray-900/95 rounded-2xl border border-green-600 shadow-2xl w-full max-w-sm">
-              <div className="text-7xl animate-bounce">🏁</div>
-              <h2 className="text-5xl font-black text-green-400 tracking-tight">FINISHED!</h2>
-              {elapsedSeconds != null && (
-                <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-widest">Elapsed</p>
-                  <p className="text-4xl font-mono font-bold text-white tabular-nums">{formatElapsedTime(elapsedSeconds)}</p>
-                </div>
-              )}
-              {finishTime && (
-                <p className="text-gray-400 text-sm">
-                  Crossed at {new Date(finishTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                </p>
-              )}
-              <p className="text-xs text-green-500">✓ Result submitted</p>
-              <div className="flex flex-col gap-2 mt-4">
-                <Link
-                  href={`/race/results/${token}`}
-                  className="block px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm"
-                >
-                  🏆 View results
-                </Link>
-                <Link
-                  href="/dashboard/races"
-                  className="block px-6 py-2 text-gray-400 hover:text-white text-sm"
-                >
-                  Back to races
-                </Link>
-              </div>
-            </div>
-          </div>
+          <FinishBanner
+            finishTime={finishTime}
+            elapsedSeconds={elapsedSeconds}
+            token={token}
+            variant="overlay"
+          />
         )}
       </div>
 
-      {/* Bottom panel: countdown or instruments */}
+      {/* Bottom panel: synchronised countdown (shared) or instruments */}
       {showCountdown ? (
-        <div className={`${countdownPhase === 'start' ? 'h-56' : 'h-44'} ${countdownBg[countdownPhase]} border-t border-gray-800 shrink-0 flex flex-col items-center justify-center px-4 py-3 transition-all duration-500`}>
-          <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">
-            {countdownPhase === 'pre-warning' && 'Race starts in'}
-            {countdownPhase === 'warning' && '⚑ Warning Signal'}
-            {countdownPhase === 'prep' && '⚑ Prep Signal'}
-            {countdownPhase === 'start' && '🏁 Start imminent'}
-          </p>
-          <div
-            className={`font-mono font-bold tabular-nums tracking-tight ${countdownColor[countdownPhase]} ${countdownPhase === 'start' ? 'text-8xl animate-pulse' : 'text-7xl'}`}
-            style={{ lineHeight: 1 }}
-          >
-            {countdown}
-          </div>
+        <div className="border-t border-gray-800 shrink-0">
+          <StartCountdown
+            startMs={startMs}
+            warningMins={warningMins}
+            speedMultiplier={isSim ? SIM_SPEED_MULTIPLIER : 1}
+          />
           {startClasses.length > 0 && (
-            <p className="text-xs text-gray-500 mt-2">
-              {startClasses[0].name} — {new Date(startClasses[0].start_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+            <p className="text-xs text-gray-500 py-1.5 text-center bg-gray-950">
+              {startClasses[0].name} — {new Date(startTimeIso ?? startClasses[0].start_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
             </p>
           )}
         </div>

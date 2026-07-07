@@ -45,6 +45,13 @@ export interface SimPosition {
 
 export type DriveMode = 'auto' | 'manual'
 
+/**
+ * Speed multiplier used when the sailor screens run in Simulator (training)
+ * mode. Shared so the GPS engine AND the start countdown display advance at the
+ * SAME sped-up rate, letting testers watch the whole start sequence in seconds.
+ */
+export const SIM_SPEED_MULTIPLIER = 8
+
 export interface SimOptions {
   mode: DriveMode
   /** Wall-clock ms between emitted fixes (default 1000). */
