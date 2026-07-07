@@ -296,7 +296,7 @@ export default function RaceCentrePage() {
         .eq('race_id', raceData.id)
         .neq('status', 'withdrawn')
         .order('created_at', { ascending: true })
-      const myParticipantId = typeof window !== 'undefined' ? window.localStorage.getItem('participant_id') : null
+      const myParticipantId = typeof window !== 'undefined' ? window.localStorage.getItem('scq-participant-id') : null
       if (ents) {
         const rows = ents as Array<{ id: string; boat_name: string | null; sail_number: string | null; helm_name: string | null; phone: string | null; status: string; role: string | null; boat_id: string | null; user_id: string | null; participant_id: string | null; crew_invited_by: string | null; crew_invite_status: string | null; crew_invited_boat_name: string | null }>
         // Crew available = entered as crew with no boat AND not yet accepted onto one.
@@ -375,7 +375,7 @@ export default function RaceCentrePage() {
       .order('created_at', { ascending: true })
     if (!ents) return
     const rows = ents as Array<{ id: string; boat_name: string | null; sail_number: string | null; helm_name: string | null; phone: string | null; status: string; role: string | null; boat_id: string | null; user_id: string | null; participant_id: string | null; crew_invited_by: string | null; crew_invite_status: string | null; crew_invited_boat_name: string | null }>
-    const myParticipantId = typeof window !== 'undefined' ? window.localStorage.getItem('participant_id') : null
+    const myParticipantId = typeof window !== 'undefined' ? window.localStorage.getItem('scq-participant-id') : null
     const crew = rows.filter((r) => r.role === 'crew' && !r.boat_id && r.crew_invite_status !== 'accepted')
     const boats = rows.filter((r) => !(r.role === 'crew' && !r.boat_id && r.crew_invite_status !== 'accepted'))
     setEntries(boats.map((r) => ({ id: r.id, boat_name: r.boat_name, sail_number: r.sail_number, helm_name: r.helm_name, status: r.status })))
