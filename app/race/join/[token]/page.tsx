@@ -1026,9 +1026,13 @@ export default function RaceJoinPage() {
                     {startTime && <span className="ml-1 font-semibold text-blue-700">🏁 {startTime}</span>}
                   </p>
                   <div className="flex flex-col gap-2 pt-2">
+                    {/* Primary: go to the Race Centre — the hub with countdown, course, nav & tracking. */}
+                    <Link href={`/race/centre/${token}`}>
+                      <Button size="lg" className="w-full">🎯 Go to Race Centre</Button>
+                    </Link>
                     {successEntry.role === 'helm' && (
                       <Link href={`/race/tracker/${token}`}>
-                        <Button size="lg" className="w-full">📡 Start tracking</Button>
+                        <Button variant="secondary" size="lg" className="w-full">📡 Start tracking now</Button>
                       </Link>
                     )}
                     {race?.club?.invite_code && (
