@@ -76,12 +76,13 @@ function StatusBadge({ status }: { status: string }) {
   )
 }
 
-function UpcomingRaceCard({ race, clubCode, isLoggedIn, entryCount }: { race: Race; clubCode: string; isLoggedIn: boolean; entryCount?: number }) {
+function UpcomingRaceCard({ race, entryCount }: { race: Race; clubCode?: string; entryCount?: number }) {
   const startTime = extractStartTime(race.notes)
-  const enterHref = isLoggedIn
-    ? `/race/join/${race.entry_token}`
-    : `/login?join=${clubCode}&race=${race.entry_token}`
-  const buttonLabel = isLoggedIn ? 'Enter Race ↗' : 'Sign in to Enter'
+  // Frictionless: everyone goes straight to the boat-name-first join flow.
+  // No sign-in gate — /race/join handles anonymous entry and offers an
+  // optional account afterwards to save results.
+  const enterHref = `/race/join/${race.entry_token}`
+  const buttonLabel = 'Enter Race ↗'
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
       <div className="flex items-start justify-between gap-3">
@@ -310,7 +311,7 @@ export default function ClubHomePage() {
           ) : (
             <div className="space-y-3">
               {upcoming.map((race) => (
-                <UpcomingRaceCard key={race.id} race={race} clubCode={code} isLoggedIn={isLoggedIn} entryCount={entryCounts[race.id]} />
+                <UpcomingRaceCard key={race.id} race={race} entryCount={entryCounts[race.id]} />
               ))}
             </div>
           )}
