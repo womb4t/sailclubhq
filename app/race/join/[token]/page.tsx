@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { getBrowserClient } from '@/lib/supabase/browser'
 import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import type { Profile, Boat } from '@/types/database'
 import { WaypointFooter } from '@/components/WaypointFooter'
@@ -37,8 +38,22 @@ interface EnteredBoat {
   helm_name: string | null
 }
 
-type Step = 'loading' | 'profile-incomplete' | 'already-entered' | 'role' | 'helm-boat' | 'crew-boat' | 'confirm' | 'done'
+type Step = 'loading' | 'profile-incomplete' | 'already-entered' | 'role' | 'anon-boat' | 'helm-boat' | 'crew-boat' | 'confirm' | 'done'
 type EntryRole = 'helm' | 'crew'
+
+const PARTICIPANT_KEY = 'scq-participant-id'
+
+function getParticipantId(): string {
+  if (typeof window === 'undefined') return ''
+  let id = localStorage.getItem(PARTICIPANT_KEY)
+  if (!id) {
+    id =
+      (crypto?.randomUUID?.() as string | undefined) ??
+      `p-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    localStorage.setItem(PARTICIPANT_KEY, id)
+  }
+  return id
+}
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr + 'T00:00:00')
@@ -65,7 +80,6 @@ function EmergencyBanner({ profile }: { profile: Profile }) {
 
 export default function RaceJoinPage() {
   const params = useParams()
-  const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const token = params.token as string
 
@@ -94,6 +108,19 @@ export default function RaceJoinPage() {
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  // Anonymous (no-account) fast-path state
+  const [anonBoatName, setAnonBoatName] = useState('')
+  const [anonSailNumber, setAnonSailNumber] = useState('')
+  const [anonHelmName, setAnonHelmName] = useState('')
+
+  // Optional post-race registration ("reward") state
+  const [regEmail, setRegEmail] = useState('')
+  const [regPassword, setRegPassword] = useState('')
+  const [regUsePassword, setRegUsePassword] = useState(false)
+  const [regLoading, setRegLoading] = useState(false)
+  const [regError, setRegError] = useState('')
+  const [regDone, setRegDone] = useState(false)
   const [myEntry, setMyEntry] = useState<{ id: string; role: string; boat_name: string | null } | null>(null)
   const [withdrawing, setWithdrawing] = useState(false)
   const [entryCount, setEntryCount] = useState<number | null>(null)
@@ -139,13 +166,12 @@ export default function RaceJoinPage() {
 
   useEffect(() => {
     if (authLoading || raceLoading) return
+    // Boat-name-first: instead of forcing /login, show the have-boat/need-boat
+    // choice immediately. No email or account required to race.
     if (!user) {
-      const clubCode = race?.club?.invite_code
-      const redirectParams = new URLSearchParams({ race: token })
-      if (clubCode) redirectParams.set('join', clubCode)
-      router.replace(`/login?${redirectParams.toString()}`)
+      setStep('role')
     }
-  }, [authLoading, raceLoading, user, race, token, router])
+  }, [authLoading, raceLoading, user])
 
   useEffect(() => {
     if (!user || !race) return
@@ -159,11 +185,9 @@ export default function RaceJoinPage() {
         .eq('id', user!.id)
         .maybeSingle()
 
-      if (!prof) { setStep('profile-incomplete'); return }
-      setProfile(prof as Profile)
-
-      const incomplete = !prof.profile_complete || !prof.emergency_contact_name || !prof.emergency_contact_phone
-      if (incomplete) { setStep('profile-incomplete'); return }
+      // Email-first funnel: do NOT block entry on a missing/incomplete profile.
+      // Use whatever profile we have (may be null) and continue to the role step.
+      setProfile((prof as Profile) ?? null)
 
       // Show ALL the user's boats (they own them); don't hard-filter by this
       // race's club_id — a boat added under a slightly different club state
@@ -233,6 +257,142 @@ export default function RaceJoinPage() {
     }
     fetchUserData()
   }, [user, race])
+
+  function raceRedirectUrl() {
+    const base = typeof window !== 'undefined' ? window.location.origin : ''
+    return `${base}/race/join/${token}`
+  }
+
+  // FAST PATH: anonymous, device-tracked entry. Boat name is the only requirement.
+  async function handleAnonHaveBoat() {
+    if (!anonBoatName.trim()) { setError('Please enter your boat name.'); return }
+    if (!race) return
+    setError('')
+    setSubmitting(true)
+    const supabase = getBrowserClient()
+    try {
+      const participantId = getParticipantId()
+
+      // Idempotent: reuse an existing entry for this device on this race.
+      const { data: ex } = await supabase
+        .from('race_entries')
+        .select('id')
+        .eq('race_id', race.id)
+        .eq('participant_id', participantId)
+        .limit(1)
+        .maybeSingle()
+
+      const rowBase = {
+        boat_name: anonBoatName.trim(),
+        helm_name: anonHelmName.trim() || null,
+        status: 'entered' as const,
+        role: 'helm',
+      }
+
+      if (ex?.id) {
+        await supabase.from('race_entries').update(rowBase).eq('id', ex.id)
+      } else {
+        const { error: insErr } = await supabase.from('race_entries').insert({
+          race_id: race.id,
+          boat_id: null,
+          class_id: null,
+          participant_id: participantId,
+          user_id: null,
+          ...rowBase,
+        })
+        if (insErr) { setError(insErr.message); setSubmitting(false); return }
+      }
+      setSuccessEntry({ boat_name: anonBoatName.trim(), class_name: null, role: 'helm' })
+      setStep('done')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    }
+    setSubmitting(false)
+  }
+
+  // FAST PATH: anonymous "need a boat" — register availability as crew.
+  async function handleAnonNeedBoat() {
+    if (!race) return
+    setError('')
+    setSubmitting(true)
+    const supabase = getBrowserClient()
+    try {
+      const participantId = getParticipantId()
+      const { data: ex } = await supabase
+        .from('race_entries')
+        .select('id')
+        .eq('race_id', race.id)
+        .eq('participant_id', participantId)
+        .limit(1)
+        .maybeSingle()
+
+      const helm = (anonHelmName.trim() || 'Someone') + ' (available as crew)'
+      if (ex?.id) {
+        await supabase.from('race_entries').update({ boat_name: null, helm_name: helm, status: 'entered', role: 'crew' }).eq('id', ex.id)
+      } else {
+        const { data: inserted, error: insErr } = await supabase.from('race_entries').insert({
+          race_id: race.id, boat_id: null, class_id: null,
+          participant_id: participantId, user_id: null,
+          boat_name: null, helm_name: helm, status: 'entered', role: 'crew',
+        }).select('id').maybeSingle()
+        if (insErr) { setError(insErr.message); setSubmitting(false); return }
+        if (inserted?.id) {
+          void fetch('/api/crew-notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'crew-available', crewEntryId: inserted.id, raceToken: token }),
+          }).catch(() => {})
+        }
+      }
+      setSuccessEntry({ boat_name: null, class_name: null, role: 'crew' })
+      setStep('done')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    }
+    setSubmitting(false)
+  }
+
+  // OPTIONAL post-race reward: register/sign in to save results. Never a gate.
+  async function handleRegisterMagic(e: React.FormEvent) {
+    e.preventDefault()
+    if (!regEmail.trim()) { setRegError('Enter your email address'); return }
+    setRegError('')
+    setRegLoading(true)
+    const supabase = getBrowserClient()
+    const { error: err } = await supabase.auth.signInWithOtp({
+      email: regEmail.trim(),
+      options: { emailRedirectTo: raceRedirectUrl() },
+    })
+    if (err) { setRegError(err.message); setRegLoading(false); return }
+    setRegDone(true)
+    setRegLoading(false)
+  }
+
+  async function handleRegisterPassword(e: React.FormEvent) {
+    e.preventDefault()
+    if (!regEmail.trim() || !regPassword) { setRegError('Enter your email and a password'); return }
+    setRegError('')
+    setRegLoading(true)
+    const supabase = getBrowserClient()
+    const email = regEmail.trim()
+    const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password: regPassword })
+    if (!signInErr && signInData.session) { setRegLoading(false); return }
+    const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+      email, password: regPassword,
+      options: { emailRedirectTo: raceRedirectUrl() },
+    })
+    if (signUpErr) {
+      setRegError(
+        /already registered|already exists/i.test(signUpErr.message)
+          ? 'That email already has an account — check your password, or use a magic link instead.'
+          : signUpErr.message
+      )
+      setRegLoading(false)
+      return
+    }
+    if (!signUpData.session) setRegDone(true)
+    setRegLoading(false)
+  }
 
   async function handleAddBoat() {
     if (!newBoatName.trim() || !race?.club) return
@@ -351,7 +511,7 @@ export default function RaceJoinPage() {
   const selectedClass = startClasses.find((c) => c.id === selectedClassId)
   const selectedCrewedBoat = enteredBoats.find((b) => b.boat_id === crewBoatId)
 
-  if (raceLoading || authLoading || (!user && !notFound)) {
+  if (raceLoading || authLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-gray-400 text-sm">Loading...</div>
@@ -482,24 +642,71 @@ export default function RaceJoinPage() {
                   <p className="text-center text-xs text-gray-500">{entryCount} {entryCount === 1 ? 'entry' : 'entries'} so far</p>
                 )}
                 <Card>
-                  <CardHeader><CardTitle>How are you racing?</CardTitle></CardHeader>
+                  <CardHeader><CardTitle>Do you have a boat, or need a boat?</CardTitle></CardHeader>
                   <div className="mt-2 space-y-3">
-                    <button onClick={() => { setRole('helm'); setStep('helm-boat') }} className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 transition-colors text-left">
+                    <button
+                      onClick={() => { setRole('helm'); setStep(user ? 'helm-boat' : 'anon-boat') }}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 transition-colors text-left"
+                    >
                       <span className="text-3xl">🚤</span>
                       <div>
-                        <div className="font-semibold text-gray-900">Helming</div>
-                        <div className="text-sm text-gray-500">Enter as helm with your boat</div>
+                        <div className="font-semibold text-gray-900">I have a boat</div>
+                        <div className="text-sm text-gray-500">Race your own boat — start tracking right away.</div>
                       </div>
                     </button>
-                    <button onClick={() => { setRole('crew'); setStep('crew-boat') }} className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 bg-white hover:bg-gray-50 active:bg-gray-100 transition-colors text-left">
-                      <span className="text-3xl">🤝</span>
+                    <button
+                      onClick={() => { setRole('crew'); if (user) { setCrewMode('available'); setStep('crew-boat') } else { void handleAnonNeedBoat() } }}
+                      className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 bg-white hover:bg-gray-50 active:bg-gray-100 transition-colors text-left"
+                    >
+                      <span className="text-3xl">🙋</span>
                       <div>
-                        <div className="font-semibold text-gray-900">Crewing</div>
-                        <div className="text-sm text-gray-500">Join someone else&apos;s boat</div>
+                        <div className="font-semibold text-gray-900">I need a boat</div>
+                        <div className="text-sm text-gray-500">Get matched to a boat that needs a hand.</div>
                       </div>
                     </button>
                   </div>
+                  {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+                  {!user && (
+                    <p className="mt-3 text-center text-xs text-gray-400">
+                      No account needed to race. You can save your results afterwards.
+                    </p>
+                  )}
                 </Card>
+              </div>
+            )}
+
+            {step === 'anon-boat' && (
+              <div className="space-y-3">
+                <Card>
+                  <CardHeader><CardTitle>Your boat</CardTitle></CardHeader>
+                  <div className="mt-2 space-y-3">
+                    <Input
+                      label="Boat name *"
+                      value={anonBoatName}
+                      onChange={(e) => setAnonBoatName(e.target.value)}
+                      placeholder="e.g. Kestrel"
+                      autoFocus
+                    />
+                    <Input
+                      label="Sail number (optional)"
+                      value={anonSailNumber}
+                      onChange={(e) => setAnonSailNumber(e.target.value)}
+                      placeholder="e.g. 1234"
+                    />
+                    <Input
+                      label="Helm name (optional)"
+                      value={anonHelmName}
+                      onChange={(e) => setAnonHelmName(e.target.value)}
+                      placeholder="Who&apos;s steering?"
+                    />
+                    <p className="text-xs text-gray-400">Boat name is all we need to get you racing.</p>
+                  </div>
+                </Card>
+                {error && <p className="text-sm text-red-600">{error}</p>}
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="lg" className="flex-1" onClick={() => { setError(''); setStep('role') }}>Back</Button>
+                  <Button size="lg" className="flex-1" loading={submitting} disabled={!anonBoatName.trim()} onClick={handleAnonHaveBoat}>🏁 Go racing</Button>
+                </div>
               </div>
             )}
 
@@ -751,6 +958,11 @@ export default function RaceJoinPage() {
                     {startTime && <span className="ml-1 font-semibold text-blue-700">🏁 {startTime}</span>}
                   </p>
                   <div className="flex flex-col gap-2 pt-2">
+                    {successEntry.role === 'helm' && (
+                      <Link href={`/race/tracker/${token}`}>
+                        <Button size="lg" className="w-full">📡 Start tracking</Button>
+                      </Link>
+                    )}
                     {race?.club?.invite_code && (
                       <Link href={`/club/${race.club.invite_code}`}>
                         <Button variant="secondary" size="lg" className="w-full">Back to club</Button>
@@ -758,6 +970,57 @@ export default function RaceJoinPage() {
                     )}
                   </div>
                 </div>
+
+                {/* Optional reward: only offered to anonymous racers, never a gate. */}
+                {!user && (
+                  regDone ? (
+                    <div className="mt-2 border-t border-gray-100 pt-4 text-center">
+                      <div className="text-2xl mb-1">📧</div>
+                      <p className="text-sm text-gray-700 font-medium">Check your email</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        We&apos;ve sent a link to <strong>{regEmail}</strong> to finish setting up your account.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-2 border-t border-gray-100 pt-4">
+                      <p className="text-sm font-medium text-gray-800 text-center">Want to save your results? 🏆</p>
+                      <p className="text-xs text-gray-500 text-center mt-0.5 mb-3">
+                        Add your email to keep your history, appear on the leaderboard, and race faster next time. Totally optional.
+                      </p>
+                      <form onSubmit={regUsePassword ? handleRegisterPassword : handleRegisterMagic} className="space-y-2 text-left">
+                        <Input
+                          label="Email"
+                          type="email"
+                          value={regEmail}
+                          onChange={(e) => setRegEmail(e.target.value)}
+                          placeholder="you@example.com"
+                          autoComplete="email"
+                        />
+                        {regUsePassword && (
+                          <Input
+                            label="Password"
+                            type="password"
+                            value={regPassword}
+                            onChange={(e) => setRegPassword(e.target.value)}
+                            placeholder="Choose a password"
+                            autoComplete="new-password"
+                          />
+                        )}
+                        {regError && <p className="text-xs text-red-600">{regError}</p>}
+                        <Button type="submit" size="lg" className="w-full" loading={regLoading}>
+                          {regUsePassword ? 'Save my results' : '✉️ Email me a link'}
+                        </Button>
+                      </form>
+                      <button
+                        type="button"
+                        onClick={() => { setRegUsePassword((v) => !v); setRegError('') }}
+                        className="mt-2 w-full text-center text-xs text-blue-600 hover:underline"
+                      >
+                        {regUsePassword ? 'Use a magic link instead' : 'Use a password instead'}
+                      </button>
+                    </div>
+                  )
+                )}
               </Card>
             )}
 
