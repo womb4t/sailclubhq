@@ -21,6 +21,7 @@ import type { RaceMapProps, RaceMapMark } from '@/components/map/RaceMap'
 import { StartCountdown } from '@/components/race/StartCountdown'
 import { MarkReachedBanner } from '@/components/race/MarkReachedBanner'
 import { FinishBanner } from '@/components/race/FinishBanner'
+import { ControlBanner } from '@/components/race/ControlBanner'
 import { useRaceProgress, type ProgressCourse } from '@/lib/useRaceProgress'
 
 // Dynamically import to avoid SSR issues with Leaflet
@@ -169,6 +170,9 @@ interface RaceData {
   entry_token: string
   status: string
   start_scheduled_at: string | null
+  race_status: string | null
+  control_message: string | null
+  control_message_at: string | null
 }
 
 interface EntryData {
@@ -327,7 +331,7 @@ export default function LiveRacePage() {
 
     const { data: raceData, error: raceErr } = await supabase
       .from('races')
-      .select('id, name, entry_token, status, course_template_id, start_scheduled_at')
+      .select('id, name, entry_token, status, course_template_id, start_scheduled_at, race_status, control_message, control_message_at')
       .eq('entry_token', token)
       .single()
 
@@ -879,8 +883,9 @@ export default function LiveRacePage() {
   const gpsColor = { waiting: 'bg-amber-400', active: 'bg-green-400', error: 'bg-red-500' }[gpsStatus]
   const gpsLabel = { waiting: 'Waiting for GPS…', active: 'GPS Active', error: 'GPS Error' }[gpsStatus]
   // Show the synchronised countdown until the gun fires (StartCountdown owns it).
-  const showCountdown = !raceStarted && startMs != null && !finished
-  const isRacing = raceStarted
+  const abandoned = race?.race_status === 'abandoned'
+  const showCountdown = !raceStarted && startMs != null && !finished && !abandoned
+  const isRacing = raceStarted && !abandoned
 
   // ── Loading / error ────────────────────────────────────────────────────────
   if (loading) {
@@ -907,6 +912,10 @@ export default function LiveRacePage() {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-gray-900">
+
+      {/* Race Control broadcast banner (postponed / abandoned) — live via the
+          races-row realtime subscription; visually distinct from mark/finish. */}
+      <ControlBanner raceStatus={race.race_status} startMs={startMs} />
 
       {/* Training-mode banner */}
       {isSim && (

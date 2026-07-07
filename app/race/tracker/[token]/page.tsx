@@ -27,6 +27,7 @@ import { BoatIdentityNudge } from '@/components/BoatIdentityNudge'
 import { StartCountdown } from '@/components/race/StartCountdown'
 import { MarkReachedBanner } from '@/components/race/MarkReachedBanner'
 import { FinishBanner } from '@/components/race/FinishBanner'
+import { ControlBanner } from '@/components/race/ControlBanner'
 import { useRaceProgress, type ProgressCourse } from '@/lib/useRaceProgress'
 
 // ── Types (mirrors the live page shapes) ───────────────────────────────────────
@@ -37,6 +38,9 @@ interface RaceData {
   status: string
   course_template_id: string | null
   start_scheduled_at: string | null
+  race_status: string | null
+  control_message: string | null
+  control_message_at: string | null
 }
 interface StartClass {
   id: string
@@ -206,7 +210,7 @@ export default function TrackerPage() {
     const supabase = getBrowserClient()
     const { data: raceData, error: raceErr } = await supabase
       .from('races')
-      .select('id, name, entry_token, status, course_template_id, start_scheduled_at')
+      .select('id, name, entry_token, status, course_template_id, start_scheduled_at, race_status, control_message, control_message_at')
       .eq('entry_token', token)
       .single()
 
@@ -540,8 +544,14 @@ export default function TrackerPage() {
         ? { dot: 'bg-red-500', label: 'GPS Error', ring: 'ring-red-500' }
         : { dot: 'bg-amber-400', label: 'Waiting for GPS…', ring: 'ring-amber-400' }
 
+  const abandoned = race?.race_status === 'abandoned'
+
   return (
     <div className="min-h-screen bg-slate-900 text-white flex flex-col">
+      {/* Race Control broadcast banner (postponed / abandoned) — live via the
+          races-row realtime subscription; visually distinct from mark/finish. */}
+      <ControlBanner raceStatus={race?.race_status} startMs={startMs} />
+
       {/* Training-mode banner */}
       {isSim && (
         <div className="bg-indigo-500 text-white text-center text-sm font-semibold py-2 px-3">
@@ -592,7 +602,7 @@ export default function TrackerPage() {
               <span className="text-lg font-semibold">{statusMeta.label}</span>
             </div>
 
-            {!raceStarted && startMs != null && (
+            {!raceStarted && startMs != null && !abandoned && (
               <div className="w-full max-w-sm">
                 <StartCountdown
                   startMs={startMs}

@@ -103,6 +103,9 @@ interface RaceData {
   course_template_id: string | null
   start_time: string | null
   start_scheduled_at: string | null
+  race_status: string | null
+  control_message: string | null
+  control_message_at: string | null
   ood_id: string | null
   ood_open_for_volunteer: boolean | null
   ood_accepted: boolean | null
@@ -185,6 +188,12 @@ export default function RaceCentrePage() {
   const [pickTarget, setPickTarget] = useState('')
   // Race Control (OOD): live synchronised start.
   const [startBusy, setStartBusy] = useState(false)
+  // Race Control broadcast actions (delay / abandon).
+  const [controlBusy, setControlBusy] = useState(false)
+  // Persistent radio-announcement reminder after a broadcast action.
+  const [radioNote, setRadioNote] = useState<string | null>(null)
+  // Two-tap guard so an accidental single tap can't abandon the race.
+  const [confirmAbandon, setConfirmAbandon] = useState(false)
 
   // Auth gate: redirect to login if not signed in
   useEffect(() => {
@@ -203,7 +212,7 @@ export default function RaceCentrePage() {
 
       const { data: raceData, error: raceErr } = await supabase
         .from('races')
-        .select('id, name, race_number, series, race_date, notes, safety_info, vhf_channel, status, entry_token, club_id, course_template_id, start_time, start_scheduled_at, ood_id, ood_open_for_volunteer, ood_accepted, ood_assigned_by')
+        .select('id, name, race_number, series, race_date, notes, safety_info, vhf_channel, status, entry_token, club_id, course_template_id, start_time, start_scheduled_at, race_status, control_message, control_message_at, ood_id, ood_open_for_volunteer, ood_accepted, ood_assigned_by')
         .eq('entry_token', token)
         .single()
 
@@ -577,6 +586,36 @@ export default function RaceCentrePage() {
   // Schedule the gun a number of minutes from now (big one-tap controls).
   function scheduleInMinutes(mins: number) {
     setStartAt(new Date(Date.now() + mins * 60_000).toISOString())
+  }
+
+  // ── Race Control: DELAY START ───────────────────────────────────────────────
+  // Pushes the gun forward via the control-gated ood_delay_start RPC. Every boat
+  // gets the amber banner live; the OOD still announces verbally (radio note).
+  async function delayStart(mins = 5) {
+    if (!race) return
+    setControlBusy(true)
+    const supabase = getBrowserClient()
+    const { data, error: e } = await supabase.rpc('ood_delay_start', { p_race: race.id, p_minutes: mins })
+    setControlBusy(false)
+    if (e) { alert('Could not delay start: ' + e.message); return }
+    if (data === 'not-controller' || data === 'no-race') { alert('Could not delay start (' + data + ').'); return }
+    // data is the new start time (ISO). Optimistic local update; realtime confirms for all.
+    setRace((r) => (r ? { ...r, start_scheduled_at: data as string, race_status: 'postponed', control_message: `Start delayed by ${mins} min`, control_message_at: new Date().toISOString() } : r))
+    setRadioNote("📻 Announce on the radio: 'Start delayed 5 minutes.'")
+  }
+
+  // ── Race Control: ABANDON RACE (two-tap confirm) ─────────────────────────────
+  async function abandonRace() {
+    if (!race) return
+    setControlBusy(true)
+    const supabase = getBrowserClient()
+    const { data, error: e } = await supabase.rpc('ood_abandon_race', { p_race: race.id })
+    setControlBusy(false)
+    setConfirmAbandon(false)
+    if (e) { alert('Could not abandon race: ' + e.message); return }
+    if (data !== 'abandoned') { alert('Could not abandon race (' + data + ').'); return }
+    setRace((r) => (r ? { ...r, race_status: 'abandoned', control_message: 'Race abandoned', control_message_at: new Date().toISOString() } : r))
+    setRadioNote("📻 Announce on the radio: 'Race abandoned.'")
   }
 
   // ── Realtime: watch THIS race row so start/OOD/status changes reflect live ──
@@ -1117,6 +1156,82 @@ export default function RaceCentrePage() {
               <p className="text-xs text-gray-400">
                 The start is an absolute time, so every boat counts down together. Changing it here updates all screens live.
               </p>
+
+              {/* ── Broadcast actions: delay / abandon ─────────────────────────
+                  These push a live banner to every boat via the races-row realtime
+                  subscription. The OOD should ALSO announce verbally (radio note). */}
+              <div className="pt-3 border-t border-gray-100 space-y-3">
+                <p className="text-xs font-medium text-gray-500">Broadcast to the fleet</p>
+
+                {/* Current live status pill */}
+                {race.race_status === 'postponed' && (
+                  <p className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    ⏱️ Start currently postponed
+                    {scheduledStartMs ? ` — new start ${formatTime(new Date(scheduledStartMs).toISOString())}` : ''}
+                  </p>
+                )}
+                {race.race_status === 'abandoned' && (
+                  <p className="text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    🛑 Race is marked ABANDONED for the whole fleet
+                  </p>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* Delay start 5 min — repeatable */}
+                  <button
+                    onClick={() => delayStart(5)}
+                    disabled={controlBusy || race.race_status === 'abandoned'}
+                    className="rounded-xl bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold py-4 text-base disabled:opacity-50 transition-colors"
+                  >
+                    ⏱️ Delay start 5 min
+                  </button>
+
+                  {/* Abandon race — two-tap confirm */}
+                  {confirmAbandon ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={abandonRace}
+                        disabled={controlBusy}
+                        className="rounded-xl bg-red-700 hover:bg-red-800 active:bg-red-900 text-white font-bold py-4 text-base disabled:opacity-50 transition-colors"
+                      >
+                        {controlBusy ? '…' : 'Confirm'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmAbandon(false)}
+                        disabled={controlBusy}
+                        className="rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-4 text-base disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmAbandon(true)}
+                      disabled={controlBusy || race.race_status === 'abandoned'}
+                      className="rounded-xl bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-bold py-4 text-base disabled:opacity-50 transition-colors"
+                    >
+                      🛑 Abandon race
+                    </button>
+                  )}
+                </div>
+                {confirmAbandon && (
+                  <p className="text-xs text-red-600 font-medium">Tap “Confirm” to abandon — this alerts every boat.</p>
+                )}
+
+                {/* Persistent radio-announcement reminder after an action. */}
+                {radioNote && (
+                  <div className="flex items-start gap-2 bg-slate-900 text-white rounded-lg px-3 py-2.5">
+                    <p className="text-sm font-medium flex-1">{radioNote}</p>
+                    <button
+                      onClick={() => setRadioNote(null)}
+                      aria-label="Dismiss"
+                      className="shrink-0 text-slate-400 hover:text-white text-sm leading-none px-1"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </Card>
         ) : (!race?.ood_id && (race?.ood_open_for_volunteer ?? true)) ? (
