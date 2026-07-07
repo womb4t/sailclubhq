@@ -23,6 +23,7 @@ import {
   getCachedRaceByToken,
 } from '@/lib/offline-gps'
 import { GpsSimulator, type SimCourse } from '@/lib/gps-simulator'
+import { BoatIdentityNudge } from '@/components/BoatIdentityNudge'
 
 // ── Types (mirrors the live page shapes) ───────────────────────────────────────
 interface RaceData {
@@ -615,6 +616,13 @@ export default function TrackerPage() {
       {!isSim && !isOnline && (
         <div className="bg-amber-500 text-slate-900 text-center text-sm font-semibold py-2 px-3">
           📡 Offline — {unsyncedCount} position{unsyncedCount === 1 ? '' : 's'} queued, will sync when connected
+        </div>
+      )}
+
+      {/* Boat identity nudge — compact so it doesn't cover instruments */}
+      {!isSim && race && (
+        <div className="px-3 pt-3">
+          <BoatIdentityNudge raceId={race.id} userId={user?.id ?? null} participantId={participantId} compact />
         </div>
       )}
 

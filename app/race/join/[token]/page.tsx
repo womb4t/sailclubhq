@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
+import { MCNAMELESS_PREFIX, MCNAMELESS_LIKE } from '@/lib/entry-label'
 import type { Profile, Boat } from '@/types/database'
 import { WaypointFooter } from '@/components/WaypointFooter'
 
@@ -306,9 +307,9 @@ export default function RaceJoinPage() {
     return `${base}/race/join/${token}`
   }
 
-  // FAST PATH: anonymous, device-tracked entry. Boat name is the only requirement.
+  // FAST PATH: anonymous, device-tracked entry. Nothing is required — a racer
+  // with neither a boat name nor a sail number gets auto-named "Boaty McNameless N".
   async function handleAnonHaveBoat() {
-    if (!anonBoatName.trim()) { setError('Please enter your boat name.'); return }
     if (!race) return
     setError('')
     setSubmitting(true)
@@ -325,9 +326,24 @@ export default function RaceJoinPage() {
         .limit(1)
         .maybeSingle()
 
+      const trimmedName = anonBoatName.trim()
+      const trimmedSail = anonSailNumber.trim()
+
+      // Auto-label only when BOTH name and sail number are absent.
+      // A sail number alone is a valid display label — don't McNameless those.
+      let finalBoatName: string | null = trimmedName || null
+      if (!trimmedName && !trimmedSail) {
+        const { count } = await supabase
+          .from('race_entries')
+          .select('id', { count: 'exact', head: true })
+          .eq('race_id', race.id)
+          .like('boat_name', MCNAMELESS_LIKE)
+        finalBoatName = `${MCNAMELESS_PREFIX} ${(count ?? 0) + 1}`
+      }
+
       const rowBase = {
-        boat_name: anonBoatName.trim(),
-        sail_number: anonSailNumber.trim() || null,
+        boat_name: finalBoatName,
+        sail_number: trimmedSail || null,
         helm_name: anonHelmName.trim() || null,
         status: 'entered' as const,
         role: 'helm',
@@ -346,7 +362,7 @@ export default function RaceJoinPage() {
         })
         if (insErr) { setError(insErr.message); setSubmitting(false); return }
       }
-      setSuccessEntry({ boat_name: anonBoatName.trim(), class_name: null, role: 'helm' })
+      setSuccessEntry({ boat_name: rowBase.boat_name, class_name: null, role: 'helm' })
       setStep('done')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -745,13 +761,13 @@ export default function RaceJoinPage() {
                       onChange={(e) => setAnonHelmName(e.target.value)}
                       placeholder="Who&apos;s steering?"
                     />
-                    <p className="text-xs text-gray-400">Boat name is all we need to get you racing.</p>
+                    <p className="text-xs text-gray-400">Leave it blank and we&apos;ll name your boat for you — you can fix it later.</p>
                   </div>
                 </Card>
                 {error && <p className="text-sm text-red-600">{error}</p>}
                 <div className="flex gap-2">
                   <Button variant="secondary" size="lg" className="flex-1" onClick={() => { setError(''); setStep('role') }}>Back</Button>
-                  <Button size="lg" className="flex-1" loading={submitting} disabled={!anonBoatName.trim()} onClick={handleAnonHaveBoat}>🏁 Go racing</Button>
+                  <Button size="lg" className="flex-1" loading={submitting} onClick={handleAnonHaveBoat}>🏁 Go racing</Button>
                 </div>
               </div>
             )}
