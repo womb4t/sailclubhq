@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge, RoundingBadge } from '@/components/ui/Badge'
 import { WaypointFooter } from '@/components/WaypointFooter'
+import { BoatIdentityNudge } from '@/components/BoatIdentityNudge'
+import { entryDisplayLabel } from '@/lib/entry-label'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -158,7 +160,7 @@ export default function RaceCentrePage() {
   const [needsSafetyContact, setNeedsSafetyContact] = useState(false)
   const [safetyNudgeDismissed, setSafetyNudgeDismissed] = useState(true)
   // Fleet (entries) + organiser remove.
-  const [entries, setEntries] = useState<Array<{ id: string; boat_name: string | null; helm_name: string | null; status: string }>>([])
+  const [entries, setEntries] = useState<Array<{ id: string; boat_name: string | null; sail_number: string | null; helm_name: string | null; status: string }>>([])
   const [crewAvailable, setCrewAvailable] = useState<Array<{ id: string; helm_name: string | null; phone: string | null; crew_invited_by: string | null; crew_invite_status: string | null }>>([])
   const [myEntry, setMyEntry] = useState<{ id: string; boat_name: string | null; status: string } | null>(null)
   // My own crew-available entry (if I entered as crew looking for a boat) + any invite on it.
@@ -290,17 +292,17 @@ export default function RaceCentrePage() {
       // Fleet: everyone entered in this race.
       const { data: ents } = await supabase
         .from('race_entries')
-        .select('id, boat_name, helm_name, phone, status, role, boat_id, user_id, participant_id, crew_invited_by, crew_invite_status, crew_invited_boat_name')
+        .select('id, boat_name, sail_number, helm_name, phone, status, role, boat_id, user_id, participant_id, crew_invited_by, crew_invite_status, crew_invited_boat_name')
         .eq('race_id', raceData.id)
         .neq('status', 'withdrawn')
         .order('created_at', { ascending: true })
       const myParticipantId = typeof window !== 'undefined' ? window.localStorage.getItem('participant_id') : null
       if (ents) {
-        const rows = ents as Array<{ id: string; boat_name: string | null; helm_name: string | null; phone: string | null; status: string; role: string | null; boat_id: string | null; user_id: string | null; participant_id: string | null; crew_invited_by: string | null; crew_invite_status: string | null; crew_invited_boat_name: string | null }>
+        const rows = ents as Array<{ id: string; boat_name: string | null; sail_number: string | null; helm_name: string | null; phone: string | null; status: string; role: string | null; boat_id: string | null; user_id: string | null; participant_id: string | null; crew_invited_by: string | null; crew_invite_status: string | null; crew_invited_boat_name: string | null }>
         // Crew available = entered as crew with no boat AND not yet accepted onto one.
         const crew = rows.filter((r) => r.role === 'crew' && !r.boat_id && r.crew_invite_status !== 'accepted')
         const boats = rows.filter((r) => !(r.role === 'crew' && !r.boat_id && r.crew_invite_status !== 'accepted'))
-        setEntries(boats.map((r) => ({ id: r.id, boat_name: r.boat_name, helm_name: r.helm_name, status: r.status })))
+        setEntries(boats.map((r) => ({ id: r.id, boat_name: r.boat_name, sail_number: r.sail_number, helm_name: r.helm_name, status: r.status })))
         setCrewAvailable(crew.map((r) => ({ id: r.id, helm_name: (r.helm_name ?? '').replace(/\s*\(available as crew\)\s*/i, '').trim() || 'A sailor', phone: r.phone, crew_invited_by: r.crew_invited_by, crew_invite_status: r.crew_invite_status })))
         // Is one of these crew rows MINE? (by user_id or this device's participant_id)
         const mineCrew = rows.find((r) => r.role === 'crew' && !r.boat_id && ((user && r.user_id === user.id) || (myParticipantId && r.participant_id === myParticipantId)))
@@ -367,16 +369,16 @@ export default function RaceCentrePage() {
     const supabase = getBrowserClient()
     const { data: ents } = await supabase
       .from('race_entries')
-      .select('id, boat_name, helm_name, phone, status, role, boat_id, user_id, participant_id, crew_invited_by, crew_invite_status, crew_invited_boat_name')
+      .select('id, boat_name, sail_number, helm_name, phone, status, role, boat_id, user_id, participant_id, crew_invited_by, crew_invite_status, crew_invited_boat_name')
       .eq('race_id', race.id)
       .neq('status', 'withdrawn')
       .order('created_at', { ascending: true })
     if (!ents) return
-    const rows = ents as Array<{ id: string; boat_name: string | null; helm_name: string | null; phone: string | null; status: string; role: string | null; boat_id: string | null; user_id: string | null; participant_id: string | null; crew_invited_by: string | null; crew_invite_status: string | null; crew_invited_boat_name: string | null }>
+    const rows = ents as Array<{ id: string; boat_name: string | null; sail_number: string | null; helm_name: string | null; phone: string | null; status: string; role: string | null; boat_id: string | null; user_id: string | null; participant_id: string | null; crew_invited_by: string | null; crew_invite_status: string | null; crew_invited_boat_name: string | null }>
     const myParticipantId = typeof window !== 'undefined' ? window.localStorage.getItem('participant_id') : null
     const crew = rows.filter((r) => r.role === 'crew' && !r.boat_id && r.crew_invite_status !== 'accepted')
     const boats = rows.filter((r) => !(r.role === 'crew' && !r.boat_id && r.crew_invite_status !== 'accepted'))
-    setEntries(boats.map((r) => ({ id: r.id, boat_name: r.boat_name, helm_name: r.helm_name, status: r.status })))
+    setEntries(boats.map((r) => ({ id: r.id, boat_name: r.boat_name, sail_number: r.sail_number, helm_name: r.helm_name, status: r.status })))
     setCrewAvailable(crew.map((r) => ({ id: r.id, helm_name: (r.helm_name ?? '').replace(/\s*\(available as crew\)\s*/i, '').trim() || 'A sailor', phone: r.phone, crew_invited_by: r.crew_invited_by, crew_invite_status: r.crew_invite_status })))
     const mineCrew = rows.find((r) => r.role === 'crew' && !r.boat_id && ((user && r.user_id === user.id) || (myParticipantId && r.participant_id === myParticipantId)))
     setMyCrewEntry(mineCrew ? { id: mineCrew.id, crew_invited_by: mineCrew.crew_invited_by, crew_invite_status: mineCrew.crew_invite_status, crew_invited_boat_name: mineCrew.crew_invited_boat_name } : null)
@@ -739,6 +741,9 @@ export default function RaceCentrePage() {
           </p>
         </div>
 
+        {/* Boat identity nudge — persistent prompt to replace an auto/blank boat name. */}
+        <BoatIdentityNudge raceId={race.id} userId={user?.id ?? null} />
+
         {/* Safety reminder — never a gate. Only for members with no emergency contact. */}
         {needsSafetyContact && !safetyNudgeDismissed && (
           <div className="flex items-start gap-2 px-3 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
@@ -1071,7 +1076,7 @@ export default function RaceCentrePage() {
               {entries.map((e) => (
                 <li key={e.id} className="flex items-center justify-between py-2 gap-3">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">{e.boat_name || 'Unnamed boat'}</p>
+                    <p className="text-sm font-medium text-gray-900 truncate">{entryDisplayLabel(e)}</p>
                     {e.helm_name && <p className="text-xs text-gray-500 truncate">{e.helm_name}</p>}
                   </div>
                   <button

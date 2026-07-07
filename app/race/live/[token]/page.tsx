@@ -16,6 +16,7 @@ import {
 } from '@/lib/offline-gps'
 import { GpsSimulator, type SimCourse } from '@/lib/gps-simulator'
 import { useFleetPositions } from '@/lib/useFleetPositions'
+import { BoatIdentityNudge } from '@/components/BoatIdentityNudge'
 import type { RaceMapProps, RaceMapMark } from '@/components/map/RaceMap'
 
 // Dynamically import to avoid SSR issues with Leaflet
@@ -199,6 +200,11 @@ export default function LiveRacePage() {
   const simRef = useRef<GpsSimulator | null>(null)
   const token = params?.token as string
   const { user } = useAuth()
+
+  const [participantId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null
+    return localStorage.getItem('scq-participant-id')
+  })
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -1004,6 +1010,13 @@ export default function LiveRacePage() {
       {!isSim && !isOnline && (
         <div className="bg-amber-500 text-slate-900 px-3 py-2 text-center text-xs font-semibold shrink-0 z-20">
           📡 Offline — {unsyncedCount} position{unsyncedCount === 1 ? '' : 's'} queued, will sync when reconnected
+        </div>
+      )}
+
+      {/* Boat identity nudge — compact so it doesn't cover instruments */}
+      {!isSim && race && (
+        <div className="px-2 pt-2 shrink-0 z-20">
+          <BoatIdentityNudge raceId={race.id} userId={user?.id ?? null} participantId={participantId} compact />
         </div>
       )}
 
