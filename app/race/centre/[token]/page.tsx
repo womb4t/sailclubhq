@@ -1032,32 +1032,22 @@ export default function RaceCentrePage() {
 
         {/* Race Nav + Tracker */}
         <Card padding="lg">
-          {raceIsOn ? (
-            <div className="grid sm:grid-cols-2 gap-3">
-              <Link
-                href={user ? `/race/live/${race.entry_token}` : goLink}
-                className="inline-flex flex-col items-center justify-center gap-1 rounded-lg bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold px-6 py-4 text-base transition-colors"
-              >
-                <span>📱 Full Race Nav</span>
-                <span className="text-xs font-normal opacity-80">Map, marks, countdown &amp; instruments</span>
-              </Link>
-              <Link
-                href={trackerLink}
-                className="inline-flex flex-col items-center justify-center gap-1 rounded-lg bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white font-semibold px-6 py-4 text-base transition-colors"
-              >
-                <span>📡 Tracker Only</span>
-                <span className="text-xs font-normal opacity-80">Beacon mode — same countdown, marks &amp; finish, no map</span>
-              </Link>
-            </div>
-          ) : (
-            <div className="text-center">
-              <div className="grid sm:grid-cols-2 gap-3">
-                <Button size="lg" disabled className="w-full">📱 Full Race Nav</Button>
-                <Button size="lg" disabled className="w-full">📡 Tracker Only</Button>
-              </div>
-              <p className="text-sm text-gray-500 mt-2">Race Nav &amp; Tracker open when racing starts.</p>
-            </div>
-          )}
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Link
+              href={user ? `/race/live/${race.entry_token}` : goLink}
+              className="inline-flex flex-col items-center justify-center gap-1 rounded-lg bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold px-6 py-4 text-base transition-colors"
+            >
+              <span>📱 Full Race Nav</span>
+              <span className="text-xs font-normal opacity-80">Map, marks, countdown &amp; instruments</span>
+            </Link>
+            <Link
+              href={trackerLink}
+              className="inline-flex flex-col items-center justify-center gap-1 rounded-lg bg-slate-700 hover:bg-slate-800 active:bg-slate-900 text-white font-semibold px-6 py-4 text-base transition-colors"
+            >
+              <span>📡 Tracker Only</span>
+              <span className="text-xs font-normal opacity-80">Beacon mode — same countdown, marks &amp; finish, no map</span>
+            </Link>
+          </div>
           <div className="mt-3 grid sm:grid-cols-2 gap-2">
             <Link
               href={`/race/viewer/${race.entry_token}`}
