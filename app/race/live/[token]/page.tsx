@@ -240,8 +240,9 @@ export default function LiveRacePage() {
   const [wholeCourse, setWholeCourse] = useState(false)
   const [batteryDismissed, setBatteryDismissed] = useState(false)
   const [mapCenter, setMapCenter] = useState<[number, number]>([51.5, -0.1])
+  const [nightMode, setNightMode] = useState(false)
 
-  // Countdown — driven by the shared synchronised start time (races.start_scheduled_at,
+  // Countdown - driven by the shared synchronised start time (races.start_scheduled_at,
   // falling back to the first start class). The StartCountdown component owns the
   // display + audio; this page only needs to know whether the gun has fired.
   const [raceStarted, setRaceStarted] = useState(false)
@@ -270,7 +271,7 @@ export default function LiveRacePage() {
   useEffect(() => { participantRef.current = participantId }, [participantId])
   useEffect(() => { isSimRef.current = isSim }, [isSim])
 
-  // Fleet positions — only subscribe while the whole-course view is open.
+  // Fleet positions - only subscribe while the whole-course view is open.
   const { boats: fleet } = useFleetPositions(wholeCourse && race ? race.id : null)
 
   // Append a point to the boat's track (breadcrumb). Called from GPS handlers
@@ -335,7 +336,7 @@ export default function LiveRacePage() {
       .single()
 
     if (raceErr || !raceData) {
-      // Likely offline (or genuinely missing) — try the cached snapshot so a
+      // Likely offline (or genuinely missing) - try the cached snapshot so a
       // sailor who loaded the race while ashore still sees marks at sea.
       const restored = await loadFromCache()
       if (!restored) {
@@ -422,7 +423,7 @@ export default function LiveRacePage() {
       }
     }
 
-    // Fetch this racer's entry — by user_id if logged in, else by the anonymous
+    // Fetch this racer's entry - by user_id if logged in, else by the anonymous
     // device participant_id. Both are fully supported on this canonical screen.
     if (user || participantId) {
       let entryQuery = supabase
@@ -521,7 +522,7 @@ export default function LiveRacePage() {
             playBeeps(2, 400, 200)
             if (typeof navigator.vibrate === 'function') navigator.vibrate([400, 200, 400])
           } else if (!updated.general_recall && generalRecall) {
-            // Recall cleared — new start set
+            // Recall cleared - new start set
             setGeneralRecall(false)
           }
         },
@@ -639,7 +640,7 @@ export default function LiveRacePage() {
 
         // Offline-first: queue every fix to IndexedDB (survives signal loss).
         // Works for BOTH logged-in members (user_id) and anonymous click-and-go
-        // racers (participant_id) — identical on-water experience either way.
+        // racers (participant_id) - identical on-water experience either way.
         if (raceRef.current && (userRef.current || participantRef.current)) {
           void savePosition({
             raceId: raceRef.current.id,
@@ -710,7 +711,7 @@ export default function LiveRacePage() {
     const c = courseRef.current
     if (!c || finishedRef.current) return
 
-    // OCS recovery — boat re-crosses start line from pre-start side after being OCS
+    // OCS recovery - boat re-crosses start line from pre-start side after being OCS
     if (ocsRef.current && prevPosRef.current && c.start_line_lat1 != null) {
       const crossed = linesIntersect(
         [prevPosRef.current.lat, prevPosRef.current.lon],
@@ -807,7 +808,7 @@ export default function LiveRacePage() {
     if (n >= 3) {
       setMultipleOcsWarning(true)
       // Phase 1: surface warning. Phase 3: OOD will set general_recall on start_classes.
-      // We don't auto-trigger the recall here — that’s OOD’s call.
+      // We don't auto-trigger the recall here - that's OOD's call.
     }
   }
 
@@ -825,7 +826,7 @@ export default function LiveRacePage() {
     : null
 
   // Bearing To Mark (BTM) = straight-line bearing to next mark. We deliberately
-  // do NOT call this CTS (Course To Steer) — we have no tide/wind data to correct for.
+  // do NOT call this CTS (Course To Steer) - we have no tide/wind data to correct for.
   const btmDeg = bearingToMark
 
   // Time to mark at current SOG (rough ETA; straight-line, no tide/leeway).
@@ -835,7 +836,7 @@ export default function LiveRacePage() {
       : null
   const timeToMarkLabel =
     secsToMark == null
-      ? '—'
+      ? '-'
       : secsToMark < 60
         ? `${Math.round(secsToMark)}s`
         : secsToMark < 3600
@@ -899,7 +900,7 @@ export default function LiveRacePage() {
 
   // ── Status colours ─────────────────────────────────────────────────────────
   const gpsColor = { waiting: 'bg-amber-400', active: 'bg-green-400', error: 'bg-red-500' }[gpsStatus]
-  const gpsLabel = { waiting: 'Waiting for GPS…', active: 'GPS Active', error: 'GPS Error' }[gpsStatus]
+  const gpsLabel = { waiting: 'Waiting for GPS...', active: 'GPS Active', error: 'GPS Error' }[gpsStatus]
   // Show the synchronised countdown until the gun fires (StartCountdown owns it).
   const abandoned = race?.race_status === 'abandoned'
   const showCountdown = !raceStarted && startMs != null && !finished && !abandoned
@@ -916,7 +917,7 @@ export default function LiveRacePage() {
       <div className="fixed inset-0 bg-gray-900 flex items-center justify-center">
         <div className="text-center space-y-3">
           <div className="text-5xl">⛵</div>
-          <p className="text-gray-400 text-sm">Loading race…</p>
+          <p className="text-gray-400 text-sm">Loading race...</p>
         </div>
       </div>
     )
@@ -933,119 +934,14 @@ export default function LiveRacePage() {
     )
   }
 
+  // Night mode palette helpers
+  const night = nightMode
+
   return (
-    <div className="fixed inset-0 flex flex-col bg-slate-100">
+    <div className={`fixed inset-0 ${night ? 'bg-gray-950' : 'bg-slate-100'}`}>
 
-      {/* Race Control broadcast banner (postponed / abandoned) — live via the
-          races-row realtime subscription; visually distinct from mark/finish. */}
-      <ControlBanner raceStatus={race.race_status} startMs={startMs} />
-
-      {/* Committee individual-recall / OCS broadcast — hard red if THIS boat is
-          OCS (return + restart), subtle note if a recall is in effect but we're
-          clear. Live via the races-row + own-entry realtime subscriptions. */}
-      {!finished && <RecallBanner iAmOcs={iAmOcs} recallActive={recallActive} />}
-
-      {/* Training-mode banner */}
-      {isSim && (
-        <div className="bg-indigo-500 text-white px-3 py-2 text-center text-xs font-semibold shrink-0 z-20">
-          🎓 Training Mode — simulated GPS, nothing is recorded
-        </div>
-      )}
-
-      {/* Offline banner */}
-      {!isSim && !isOnline && (
-        <div className="bg-amber-500 text-slate-900 px-3 py-2 text-center text-xs font-semibold shrink-0 z-20">
-          📡 Offline — {unsyncedCount} position{unsyncedCount === 1 ? '' : 's'} queued, will sync when reconnected
-        </div>
-      )}
-
-      {/* Boat identity nudge — compact so it doesn't cover instruments */}
-      {!isSim && race && (
-        <div className="px-2 pt-2 shrink-0 z-20">
-          <BoatIdentityNudge raceId={race.id} userId={user?.id ?? null} participantId={participantId} compact />
-        </div>
-      )}
-
-      {/* Battery warning banner */}
-      {!batteryDismissed && (
-        <div className="bg-amber-900/80 border-b border-amber-700 px-3 py-2 flex items-center justify-between gap-2 shrink-0 z-20">
-          <p className="text-xs text-amber-200 flex-1">
-            ⚡ GPS tracking uses significant battery. We recommend plugging in a charger or battery pack.
-          </p>
-          <button
-            onClick={() => setBatteryDismissed(true)}
-            className="text-amber-400 hover:text-amber-200 text-xl leading-none shrink-0 px-1"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {/* Status bar */}
-      <div className="h-8 bg-slate-800 border-b border-slate-700 flex items-center px-3 gap-2 shrink-0 z-10">
-        <div className="flex items-center gap-1.5 shrink-0">
-          <div className={`w-2 h-2 rounded-full ${gpsColor}`} title={gpsLabel} />
-        </div>
-        <span className="text-xs font-semibold text-white truncate flex-1 text-center">{race.name}</span>
-        {isRacing && !finished && (
-          <span className="text-xs text-slate-300 shrink-0 font-mono">
-            {currentLap}/{totalLaps}
-          </span>
-        )}
-        <Link href="/dashboard/races" className="text-xs text-slate-400 hover:text-white shrink-0 ml-1">
-          ✕
-        </Link>
-      </div>
-
-      {/* BTM instruction header (Savvy-Navvy style). BTM = Bearing To Mark (straight-line);
-          NOT CTS — we have no tide/wind data to correct for. */}
-      {isRacing && !finished && (
-        <div className="bg-rose-500 text-white shrink-0 px-3 py-1.5 flex items-center gap-2 shadow-md z-10">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-sm shrink-0">
-            ⤴️
-          </div>
-          <div className="grid grid-cols-4 gap-x-2 flex-1 min-w-0">
-            <div className="leading-tight">
-              <span className="text-[9px] uppercase tracking-wide opacity-80">BTM </span>
-              <span className="text-sm font-bold tabular-nums">
-                {btmDeg != null ? `${Math.round(btmDeg)}°` : '—'}
-              </span>
-            </div>
-            <div className="leading-tight">
-              <span className="text-[9px] uppercase tracking-wide opacity-80">Spd </span>
-              <span className="text-sm font-bold tabular-nums">
-                {currentPos ? currentPos.speed_kts.toFixed(1) : '—'}
-              </span>
-              <span className="text-[9px] opacity-80">k</span>
-            </div>
-            <div className="leading-tight">
-              <span className="text-[9px] uppercase tracking-wide opacity-80">ETA </span>
-              <span className="text-xs font-semibold tabular-nums">{timeToMarkLabel}</span>
-            </div>
-            <div className="leading-tight">
-              <span className="text-[9px] uppercase tracking-wide opacity-80">DST </span>
-              <span className="text-xs font-semibold tabular-nums">
-                {distToMark != null ? formatNm(distToMark) : '—'}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Secondary strip: next-mark hint (“Then head for …”) */}
-      {isRacing && !finished && nextMark && (
-        <div className="bg-rose-600 text-white shrink-0 px-3 py-1 text-xs font-medium z-10">
-          {nextMarkIndex >= marks.length
-            ? '→ Head for the finish line'
-            : <>→ Head for <span className="font-bold">{nextMark.name || `Mark ${nextMarkIndex + 1}`}</span>
-                <span className={`ml-2 text-xs ${nextMark.roundingSide === 'port' ? 'text-red-200' : 'text-green-200'}`}>
-                  {nextMark.roundingSide === 'port' ? '● leave to port' : '● leave to starboard'}
-                </span></>}
-        </div>
-      )}
-
-      {/* Map */}
-      <div className="flex-1 relative overflow-hidden">
+      {/* ── FULL-SCREEN MAP — base layer ── */}
+      <div className="absolute inset-0">
         <RaceMap
           center={mapCenter}
           courseMarks={marks}
@@ -1062,149 +958,315 @@ export default function LiveRacePage() {
           fleet={wholeCourse ? fleet.map(b => ({ entryId: b.entryId, lat: b.lat, lon: b.lon, headingDeg: b.headingDeg, boatName: b.boatName })) : []}
           fitAll={wholeCourse}
         />
+      </div>
 
-        {/* Map toggles */}
-        <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-2 items-end">
-          <button
-            onClick={() => setWholeCourse(v => !v)}
-            className={`border rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-lg ${wholeCourse ? 'bg-blue-500 border-blue-400 text-white' : 'bg-white/90 border-slate-300 text-slate-800'}`}
-          >
-            {wholeCourse ? '🏁 Whole Course' : '📍 My View'}
-          </button>
-          {!wholeCourse && (
-            <button
-              onClick={() => setCourseUp(v => !v)}
-              className="bg-white/90 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-white font-medium shadow-lg"
-            >
-              {courseUp ? '🧭 Course Up' : '⬆️ North Up'}
-            </button>
-          )}
-          <button
-            onClick={() => setShowHeadingLine(v => !v)}
-            className={`border rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-lg ${showHeadingLine ? 'bg-red-500 border-red-400 text-white' : 'bg-white/90 border-slate-300 text-slate-800'}`}
-          >
-            {showHeadingLine ? '— HDG On' : '— HDG Off'}
-          </button>
+      {/* ── OVERLAYS — all sit above the map using absolute/fixed positioning ── */}
+
+      {/* TOP overlay stack — thin translucent bars at the very top */}
+      <div className="absolute top-0 left-0 right-0 z-[1000] flex flex-col pointer-events-none">
+
+        {/* Race Control broadcast banner (postponed / abandoned) */}
+        <div className="pointer-events-auto">
+          <ControlBanner raceStatus={race.race_status} startMs={startMs} />
         </div>
 
-        {/* Next-mark detail now lives in the coral BTM header/strip above the map. */}
-
-        {/* Mark-reached flash — shared banner (identical on Nav / Tracker / Sim) */}
-        {!finished && <MarkReachedBanner markReached={markReached} variant="floating" />}
-
-        {/* General Recall overlay — shown when OOD triggers recall (Phase 3 sets via Realtime) */}
-        {generalRecall && !finished && (
-          <div className="absolute inset-0 z-[1600] flex items-center justify-center bg-orange-950/85">
-            <div className="text-center space-y-4 px-8 py-8 bg-orange-950 rounded-2xl border-2 border-orange-400 shadow-2xl max-w-xs mx-4">
-              <div className="text-5xl">↩️</div>
-              <h2 className="text-2xl font-bold text-white">GENERAL RECALL</h2>
-              <p className="text-orange-200 font-semibold">Return to pre-start area</p>
-              <p className="text-sm text-orange-300">Wait for the race committee’s new start signal</p>
-              <div className="mt-2 flex items-center justify-center gap-2">
-                <span className="inline-block w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
-                <span className="text-xs text-orange-400">Awaiting new start time…</span>
-              </div>
-            </div>
+        {/* Committee individual-recall / OCS broadcast */}
+        {!finished && (
+          <div className="pointer-events-auto">
+            <RecallBanner iAmOcs={iAmOcs} recallActive={recallActive} />
           </div>
         )}
 
-        {/* OCS overlay (individual) — only shown when NOT in general recall */}
-        {ocs && !generalRecall && !finished && (
-          <div className="absolute inset-0 z-[1500] flex items-center justify-center bg-red-950/80">
-            <div className="text-center space-y-4 px-8 py-8 bg-red-950 rounded-2xl border-2 border-red-500 shadow-2xl max-w-xs mx-4">
-              <div className="text-5xl">⚠️</div>
-              <h2 className="text-2xl font-bold text-white">OCS</h2>
-              <p className="text-red-300 font-semibold">On Course Side</p>
-              <p className="text-sm text-red-200">Return behind the start line to restart</p>
-              {multipleOcsWarning && (
-                <p className="text-xs text-amber-300 bg-amber-900/50 rounded-lg px-3 py-1.5 mt-1">
-                  ⚠️ {ocsCount} boats OCS — awaiting race committee decision
-                </p>
-              )}
-              <div className="mt-2 flex items-center justify-center gap-2">
-                <span className="inline-block w-2 h-2 rounded-full bg-red-400 animate-pulse" />
-                <span className="text-xs text-red-400">Monitoring your position…</span>
-              </div>
-            </div>
+        {/* Training-mode banner */}
+        {isSim && (
+          <div className="pointer-events-auto bg-indigo-500/90 backdrop-blur-sm text-white px-3 py-1.5 text-center text-xs font-semibold">
+            🎓 Training Mode — simulated GPS, nothing is recorded
           </div>
         )}
 
-        {/* Finished overlay — shared banner (identical on Nav / Tracker / Sim) */}
-        {finished && (
-          <FinishBanner
-            finishTime={finishTime}
-            elapsedSeconds={elapsedSeconds}
-            token={token}
-            variant="overlay"
-          />
+        {/* Offline banner */}
+        {!isSim && !isOnline && (
+          <div className="pointer-events-auto bg-amber-500/90 backdrop-blur-sm text-slate-900 px-3 py-1.5 text-center text-xs font-semibold">
+            📡 Offline — {unsyncedCount} position{unsyncedCount === 1 ? '' : 's'} queued, will sync when reconnected
+          </div>
+        )}
+
+        {/* Battery warning banner */}
+        {!batteryDismissed && (
+          <div className="pointer-events-auto bg-amber-900/80 backdrop-blur-sm px-3 py-1.5 flex items-center justify-between gap-2">
+            <p className="text-xs text-amber-200 flex-1">
+              ⚡ GPS uses battery. Plug in a charger or battery pack.
+            </p>
+            <button
+              onClick={() => setBatteryDismissed(true)}
+              className="text-amber-400 hover:text-amber-200 text-lg leading-none shrink-0 px-1"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {/* Thin status bar: GPS dot + race name + lap + night toggle + close */}
+        <div className={`pointer-events-auto h-8 ${
+          night ? 'bg-gray-900/85' : 'bg-slate-800/85'
+        } backdrop-blur-sm flex items-center px-3 gap-2`}>
+          <div className={`w-2 h-2 rounded-full shrink-0 ${gpsColor}`} title={gpsLabel} />
+          <span className="text-xs font-semibold text-white truncate flex-1 text-center">{race.name}</span>
+          {isRacing && !finished && (
+            <span className="text-xs text-slate-300 shrink-0 font-mono">{currentLap}/{totalLaps}</span>
+          )}
+          {/* Night mode toggle */}
+          <button
+            onClick={() => setNightMode(v => !v)}
+            className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${
+              night ? 'bg-yellow-500/20 text-yellow-300' : 'bg-slate-600/60 text-slate-300'
+            }`}
+            title={night ? 'Switch to day mode' : 'Switch to night mode'}
+          >
+            {night ? '☀' : '🌙'}
+          </button>
+          <Link href="/dashboard/races" className="text-xs text-slate-400 hover:text-white shrink-0 ml-1">
+            ✕
+          </Link>
+        </div>
+
+        {/* Boat identity nudge — compact, below status bar */}
+        {!isSim && race && (
+          <div className="pointer-events-auto px-2 pt-1">
+            <BoatIdentityNudge raceId={race.id} userId={user?.id ?? null} participantId={participantId} compact />
+          </div>
         )}
       </div>
 
-      {/* Bottom panel: synchronised countdown (shared) or instruments */}
-      {showCountdown ? (
-        <div className="border-t border-gray-800 shrink-0">
-          <StartCountdown
-            startMs={startMs}
-            warningMins={warningMins}
-            speedMultiplier={isSim ? SIM_SPEED_MULTIPLIER : 1}
-          />
-          {startClasses.length > 0 && (
-            <p className="text-xs text-gray-500 py-1.5 text-center bg-gray-950">
-              {startClasses[0].name} — {new Date(startTimeIso ?? startClasses[0].start_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-            </p>
-          )}
-        </div>
-      ) : (
-        <div className="h-44 bg-gray-950 border-t border-gray-800 shrink-0 px-4 py-3">
-          {/* Row 1: Speed / Heading / Dist to mark */}
-          <div className="grid grid-cols-3 gap-2 mb-2">
-            <div className="text-center">
-              <div className="text-3xl font-bold font-mono text-white tabular-nums">
-                {currentPos ? currentPos.speed_kts.toFixed(1) : '—'}
+      {/* BTM data card — floating top-left, Garmin-style compact 2×2 grid */}
+      {isRacing && !finished && (
+        <div className={`absolute top-24 left-3 z-[1000] rounded-xl shadow-2xl ${
+          night ? 'bg-gray-900/90' : 'bg-slate-900/85'
+        } backdrop-blur-md border ${
+          night ? 'border-gray-700/50' : 'border-slate-700/50'
+        } px-3 py-2.5 min-w-[160px]`}>
+          {/* Arrow icon + "Bearing To Mark" label */}
+          <div className="flex items-center gap-1.5 mb-2">
+            <span className="text-base">⤴️</span>
+            <span className="text-[9px] uppercase tracking-widest text-slate-400 font-semibold">
+              {nextMarkIndex >= marks.length ? 'Finish' : nextMark?.name || `Mark ${nextMarkIndex + 1}`}
+            </span>
+          </div>
+          {/* 2×2 data grid */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+            <div>
+              <div className="text-[9px] uppercase tracking-wide text-slate-400">BTM</div>
+              <div className="text-lg font-bold font-mono text-white tabular-nums leading-tight">
+                {btmDeg != null ? `${Math.round(btmDeg)}°` : '—'}
               </div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide mt-0.5">kts</div>
             </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold font-mono text-white tabular-nums">
-                {currentPos ? Math.round(currentPos.heading) : '—'}°
+            <div>
+              <div className="text-[9px] uppercase tracking-wide text-slate-400">Speed</div>
+              <div className="text-lg font-bold font-mono text-white tabular-nums leading-tight">
+                {currentPos ? currentPos.speed_kts.toFixed(1) : '—'}<span className="text-[10px] text-slate-400 ml-0.5">kts</span>
               </div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide mt-0.5">HDG</div>
             </div>
-            <div className="text-center">
-              <div className="text-3xl font-bold font-mono text-green-400 tabular-nums">
+            <div>
+              <div className="text-[9px] uppercase tracking-wide text-slate-400">ETA</div>
+              <div className="text-sm font-semibold font-mono text-white tabular-nums leading-tight">
+                {timeToMarkLabel}
+              </div>
+            </div>
+            <div>
+              <div className="text-[9px] uppercase tracking-wide text-slate-400">Dist</div>
+              <div className="text-sm font-semibold font-mono text-green-400 tabular-nums leading-tight">
                 {distToMark != null ? formatNm(distToMark) : '—'}
               </div>
-              <div className="text-xs text-gray-500 uppercase tracking-wide mt-0.5">To Mark</div>
-            </div>
-          </div>
-
-          {/* Divider */}
-          <div className="border-t border-gray-800 mb-2" />
-
-          {/* Row 2: dist to finish / lap / bearing */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <span className="text-xs text-gray-500">To finish: </span>
-              <span className="text-sm font-semibold text-white font-mono">
-                {distToFinish != null ? formatNm(distToFinish) : '—'}
-              </span>
-              <span className="text-xs text-gray-500 ml-3">Lap </span>
-              <span className="text-sm font-semibold text-white font-mono">{currentLap}/{totalLaps}</span>
-            </div>
-            <div className="text-right">
-              {bearingToMark != null && nextMark ? (
-                <span className="text-xs text-gray-400">
-                  {Math.round(bearingToMark)}° ({compassPoint(bearingToMark)}) → {nextMark.name}
-                </span>
-              ) : nextMarkIndex >= marks.length ? (
-                <span className="text-xs text-green-400">→ Finish line</span>
-              ) : (
-                <span className="text-xs text-gray-600">No bearing</span>
-              )}
             </div>
           </div>
         </div>
       )}
+
+      {/* Map toggles — bottom-right, small, floating */}
+      <div className="absolute bottom-[12rem] right-3 z-[1000] flex flex-col gap-1.5 items-end">
+        <button
+          onClick={() => setWholeCourse(v => !v)}
+          className={`border rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-lg backdrop-blur-sm ${
+            wholeCourse
+              ? 'bg-blue-500/90 border-blue-400 text-white'
+              : night
+                ? 'bg-gray-800/85 border-gray-600 text-gray-200'
+                : 'bg-white/90 border-slate-300 text-slate-800'
+          }`}
+        >
+          {wholeCourse ? '🏁 Whole' : '📍 Me'}
+        </button>
+        {!wholeCourse && (
+          <button
+            onClick={() => setCourseUp(v => !v)}
+            className={`border rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-lg backdrop-blur-sm ${
+              night ? 'bg-gray-800/85 border-gray-600 text-gray-200' : 'bg-white/90 border-slate-300 text-slate-800'
+            }`}
+          >
+            {courseUp ? '🧭' : '⬆️'}
+          </button>
+        )}
+        <button
+          onClick={() => setShowHeadingLine(v => !v)}
+          className={`border rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-lg backdrop-blur-sm ${
+            showHeadingLine
+              ? 'bg-red-500/90 border-red-400 text-white'
+              : night
+                ? 'bg-gray-800/85 border-gray-600 text-gray-200'
+                : 'bg-white/90 border-slate-300 text-slate-800'
+          }`}
+        >
+          — {showHeadingLine ? 'HDG' : 'HDG'}
+        </button>
+      </div>
+
+      {/* "Head for" pill — floating bottom-center, above the bottom panel */}
+      {isRacing && !finished && nextMark && (
+        <div className="absolute bottom-[12rem] left-1/2 -translate-x-1/2 z-[1000]">
+          <div className={`rounded-full px-4 py-1.5 text-xs font-semibold shadow-xl backdrop-blur-md border ${
+            night
+              ? 'bg-gray-900/90 border-gray-700/50 text-white'
+              : 'bg-slate-900/85 border-slate-700/50 text-white'
+          } flex items-center gap-2 whitespace-nowrap`}>
+            <span>→</span>
+            <span className="font-bold">
+              {nextMarkIndex >= marks.length ? 'Finish line' : nextMark.name || `Mark ${nextMarkIndex + 1}`}
+            </span>
+            {nextMarkIndex < marks.length && (
+              <span className={`text-[10px] ${
+                nextMark.roundingSide === 'port' ? 'text-red-300' : 'text-green-300'
+              }`}>
+                {nextMark.roundingSide === 'port' ? '● port' : '● stbd'}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Mark-reached flash — shared banner (identical on Nav / Tracker / Sim) */}
+      {!finished && <MarkReachedBanner markReached={markReached} variant="floating" />}
+
+      {/* General Recall overlay */}
+      {generalRecall && !finished && (
+        <div className="absolute inset-0 z-[1600] flex items-center justify-center bg-orange-950/85">
+          <div className="text-center space-y-4 px-8 py-8 bg-orange-950 rounded-2xl border-2 border-orange-400 shadow-2xl max-w-xs mx-4">
+            <div className="text-5xl">↩️</div>
+            <h2 className="text-2xl font-bold text-white">GENERAL RECALL</h2>
+            <p className="text-orange-200 font-semibold">Return to pre-start area</p>
+            <p className="text-sm text-orange-300">Wait for the race committee's new start signal</p>
+            <div className="mt-2 flex items-center justify-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-orange-400 animate-pulse" />
+              <span className="text-xs text-orange-400">Awaiting new start time…</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* OCS overlay (individual) — only shown when NOT in general recall */}
+      {ocs && !generalRecall && !finished && (
+        <div className="absolute inset-0 z-[1500] flex items-center justify-center bg-red-950/80">
+          <div className="text-center space-y-4 px-8 py-8 bg-red-950 rounded-2xl border-2 border-red-500 shadow-2xl max-w-xs mx-4">
+            <div className="text-5xl">⚠️</div>
+            <h2 className="text-2xl font-bold text-white">OCS</h2>
+            <p className="text-red-300 font-semibold">On Course Side</p>
+            <p className="text-sm text-red-200">Return behind the start line to restart</p>
+            {multipleOcsWarning && (
+              <p className="text-xs text-amber-300 bg-amber-900/50 rounded-lg px-3 py-1.5 mt-1">
+                ⚠️ {ocsCount} boats OCS — awaiting race committee decision
+              </p>
+            )}
+            <div className="mt-2 flex items-center justify-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+              <span className="text-xs text-red-400">Monitoring your position…</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Finished overlay — shared banner (identical on Nav / Tracker / Sim) */}
+      {finished && (
+        <FinishBanner
+          finishTime={finishTime}
+          elapsedSeconds={elapsedSeconds}
+          token={token}
+          variant="overlay"
+        />
+      )}
+
+      {/* Bottom panel: synchronised countdown (shared) or instruments */}
+      {/* Floats over the map at the bottom, translucent */}
+      <div className={`absolute bottom-0 left-0 right-0 z-[900] ${
+        showCountdown ? '' : 'h-44'
+      } ${
+        night ? 'bg-gray-950/90' : 'bg-gray-950/90'
+      } backdrop-blur-md border-t ${
+        night ? 'border-gray-800/60' : 'border-gray-800/60'
+      }`}>
+        {showCountdown ? (
+          <div>
+            <StartCountdown
+              startMs={startMs}
+              warningMins={warningMins}
+              speedMultiplier={isSim ? SIM_SPEED_MULTIPLIER : 1}
+            />
+            {startClasses.length > 0 && (
+              <p className="text-xs text-gray-500 py-1.5 text-center">
+                {startClasses[0].name} — {new Date(startTimeIso ?? startClasses[0].start_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="px-4 py-3">
+            {/* Row 1: Speed / Heading / Dist to mark */}
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              <div className="text-center">
+                <div className="text-3xl font-bold font-mono text-white tabular-nums">
+                  {currentPos ? currentPos.speed_kts.toFixed(1) : '—'}
+                </div>
+                <div className="text-xs text-gray-500 uppercase tracking-wide mt-0.5">kts</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold font-mono text-white tabular-nums">
+                  {currentPos ? Math.round(currentPos.heading) : '—'}°
+                </div>
+                <div className="text-xs text-gray-500 uppercase tracking-wide mt-0.5">HDG</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold font-mono text-green-400 tabular-nums">
+                  {distToMark != null ? formatNm(distToMark) : '—'}
+                </div>
+                <div className="text-xs text-gray-500 uppercase tracking-wide mt-0.5">To Mark</div>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-gray-800 mb-2" />
+
+            {/* Row 2: dist to finish / lap / bearing */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <span className="text-xs text-gray-500">To finish: </span>
+                <span className="text-sm font-semibold text-white font-mono">
+                  {distToFinish != null ? formatNm(distToFinish) : '—'}
+                </span>
+                <span className="text-xs text-gray-500 ml-3">Lap </span>
+                <span className="text-sm font-semibold text-white font-mono">{currentLap}/{totalLaps}</span>
+              </div>
+              <div className="text-right">
+                {bearingToMark != null && nextMark ? (
+                  <span className="text-xs text-gray-400">
+                    {Math.round(bearingToMark)}° ({compassPoint(bearingToMark)}) → {nextMark.name}
+                  </span>
+                ) : nextMarkIndex >= marks.length ? (
+                  <span className="text-xs text-green-400">→ Finish line</span>
+                ) : (
+                  <span className="text-xs text-gray-600">No bearing</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
