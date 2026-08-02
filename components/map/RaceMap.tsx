@@ -304,9 +304,8 @@ export default function RaceMap({
         headingLineRef.current.setLatLngs(pts)
       } else {
         headingLineRef.current = L.polyline(pts, {
-          color: '#f59e0b',
+          color: '#ef4444',
           weight: 2,
-          dashArray: '6 6',
           opacity: 0.9,
         }).addTo(map)
       }
@@ -349,9 +348,9 @@ export default function RaceMap({
       trailRef.current.setLatLngs(trail)
     } else {
       trailRef.current = L.polyline(trail, {
-        color: '#2563eb',
+        color: '#facc15',
         weight: 3,
-        opacity: 0.6,
+        opacity: 0.8,
       }).addTo(map)
     }
   }, [trail])

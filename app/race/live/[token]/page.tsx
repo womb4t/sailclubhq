@@ -235,7 +235,7 @@ export default function LiveRacePage() {
 
   // UI state
   const [courseUp, setCourseUp] = useState(true)
-  const [showHeadingLine, setShowHeadingLine] = useState(false)
+  const [showHeadingLine, setShowHeadingLine] = useState(true)
   const [trail, setTrail] = useState<[number, number][]>([])
   const [wholeCourse, setWholeCourse] = useState(false)
   const [batteryDismissed, setBatteryDismissed] = useState(false)
@@ -934,7 +934,7 @@ export default function LiveRacePage() {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-gray-900">
+    <div className="fixed inset-0 flex flex-col bg-slate-100">
 
       {/* Race Control broadcast banner (postponed / abandoned) — live via the
           races-row realtime subscription; visually distinct from mark/finish. */}
@@ -982,18 +982,17 @@ export default function LiveRacePage() {
       )}
 
       {/* Status bar */}
-      <div className="h-10 bg-gray-900 border-b border-gray-800 flex items-center px-3 gap-2 shrink-0 z-10">
+      <div className="h-8 bg-slate-800 border-b border-slate-700 flex items-center px-3 gap-2 shrink-0 z-10">
         <div className="flex items-center gap-1.5 shrink-0">
-          <div className={`w-2.5 h-2.5 rounded-full ${gpsColor}`} title={gpsLabel} />
-          <span className="text-xs text-gray-400 hidden sm:inline">{gpsLabel}</span>
+          <div className={`w-2 h-2 rounded-full ${gpsColor}`} title={gpsLabel} />
         </div>
-        <span className="text-sm font-semibold text-white truncate flex-1 text-center">{race.name}</span>
+        <span className="text-xs font-semibold text-white truncate flex-1 text-center">{race.name}</span>
         {isRacing && !finished && (
-          <span className="text-xs text-gray-300 shrink-0 font-mono">
-            Lap {currentLap}/{totalLaps}
+          <span className="text-xs text-slate-300 shrink-0 font-mono">
+            {currentLap}/{totalLaps}
           </span>
         )}
-        <Link href="/dashboard/races" className="text-xs text-gray-500 hover:text-gray-300 shrink-0 ml-1">
+        <Link href="/dashboard/races" className="text-xs text-slate-400 hover:text-white shrink-0 ml-1">
           ✕
         </Link>
       </div>
@@ -1001,34 +1000,31 @@ export default function LiveRacePage() {
       {/* BTM instruction header (Savvy-Navvy style). BTM = Bearing To Mark (straight-line);
           NOT CTS — we have no tide/wind data to correct for. */}
       {isRacing && !finished && (
-        <div className="bg-rose-500 text-white shrink-0 px-4 py-2.5 flex items-center gap-3 shadow-md z-10">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-lg shrink-0">
+        <div className="bg-rose-500 text-white shrink-0 px-3 py-1.5 flex items-center gap-2 shadow-md z-10">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/20 text-sm shrink-0">
             ⤴️
           </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 flex-1 min-w-0">
+          <div className="grid grid-cols-4 gap-x-2 flex-1 min-w-0">
             <div className="leading-tight">
-              <span className="text-[11px] uppercase tracking-wide opacity-80">BTM </span>
-              <span className="text-lg font-bold tabular-nums">
+              <span className="text-[9px] uppercase tracking-wide opacity-80">BTM </span>
+              <span className="text-sm font-bold tabular-nums">
                 {btmDeg != null ? `${Math.round(btmDeg)}°` : '—'}
               </span>
-              {btmDeg != null && (
-                <span className="text-[11px] opacity-80 ml-1">{compassPoint(btmDeg)}</span>
-              )}
-            </div>
-            <div className="leading-tight text-right">
-              <span className="text-[11px] uppercase tracking-wide opacity-80">Speed </span>
-              <span className="text-lg font-bold tabular-nums">
-                {currentPos ? currentPos.speed_kts.toFixed(1) : '—'}
-              </span>
-              <span className="text-[11px] opacity-80 ml-0.5">kts</span>
             </div>
             <div className="leading-tight">
-              <span className="text-[11px] uppercase tracking-wide opacity-80">For </span>
-              <span className="text-base font-semibold tabular-nums">{timeToMarkLabel}</span>
+              <span className="text-[9px] uppercase tracking-wide opacity-80">Spd </span>
+              <span className="text-sm font-bold tabular-nums">
+                {currentPos ? currentPos.speed_kts.toFixed(1) : '—'}
+              </span>
+              <span className="text-[9px] opacity-80">k</span>
             </div>
-            <div className="leading-tight text-right">
-              <span className="text-[11px] uppercase tracking-wide opacity-80">To mark </span>
-              <span className="text-base font-semibold tabular-nums">
+            <div className="leading-tight">
+              <span className="text-[9px] uppercase tracking-wide opacity-80">ETA </span>
+              <span className="text-xs font-semibold tabular-nums">{timeToMarkLabel}</span>
+            </div>
+            <div className="leading-tight">
+              <span className="text-[9px] uppercase tracking-wide opacity-80">DST </span>
+              <span className="text-xs font-semibold tabular-nums">
                 {distToMark != null ? formatNm(distToMark) : '—'}
               </span>
             </div>
@@ -1038,7 +1034,7 @@ export default function LiveRacePage() {
 
       {/* Secondary strip: next-mark hint (“Then head for …”) */}
       {isRacing && !finished && nextMark && (
-        <div className="bg-rose-600 text-white shrink-0 px-4 py-1.5 text-sm font-medium z-10">
+        <div className="bg-rose-600 text-white shrink-0 px-3 py-1 text-xs font-medium z-10">
           {nextMarkIndex >= marks.length
             ? '→ Head for the finish line'
             : <>→ Head for <span className="font-bold">{nextMark.name || `Mark ${nextMarkIndex + 1}`}</span>
@@ -1071,23 +1067,23 @@ export default function LiveRacePage() {
         <div className="absolute top-3 right-3 z-[1000] flex flex-col gap-2 items-end">
           <button
             onClick={() => setWholeCourse(v => !v)}
-            className={`border rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-lg ${wholeCourse ? 'bg-blue-500 border-blue-400 text-white' : 'bg-gray-900/90 border-gray-700 text-white'}`}
+            className={`border rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-lg ${wholeCourse ? 'bg-blue-500 border-blue-400 text-white' : 'bg-white/90 border-slate-300 text-slate-800'}`}
           >
             {wholeCourse ? '🏁 Whole Course' : '📍 My View'}
           </button>
           {!wholeCourse && (
             <button
               onClick={() => setCourseUp(v => !v)}
-              className="bg-gray-900/90 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-medium shadow-lg"
+              className="bg-white/90 border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-white font-medium shadow-lg"
             >
               {courseUp ? '🧭 Course Up' : '⬆️ North Up'}
             </button>
           )}
           <button
             onClick={() => setShowHeadingLine(v => !v)}
-            className={`border rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-lg ${showHeadingLine ? 'bg-amber-500 border-amber-400 text-slate-900' : 'bg-gray-900/90 border-gray-700 text-white'}`}
+            className={`border rounded-lg px-2.5 py-1.5 text-xs font-medium shadow-lg ${showHeadingLine ? 'bg-red-500 border-red-400 text-white' : 'bg-white/90 border-slate-300 text-slate-800'}`}
           >
-            {showHeadingLine ? '— Heading On' : '— Heading Off'}
+            {showHeadingLine ? '— HDG On' : '— HDG Off'}
           </button>
         </div>
 
