@@ -294,8 +294,12 @@ export default function RaceMap({
     }
 
     // Pan map to follow position (unless we're in whole-course/viewer mode).
+    // Offset center so boat sits at ~33% from bottom of screen (Garmin style).
     if (!fitAll) {
-      map.panTo([currentPosition.lat, currentPosition.lon], { animate: true, duration: 0.5 })
+      const zoom = map.getZoom()
+      // At zoom 14, ~0.003 lat offset puts boat at 1/3 from bottom
+      const offset = 0.003 * Math.pow(2, 14 - zoom)
+      map.panTo([currentPosition.lat + offset, currentPosition.lon], { animate: true, duration: 0.5 })
     }
   }, [currentPosition, showHeadingLine, fitAll])
 
