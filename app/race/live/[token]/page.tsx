@@ -1212,33 +1212,33 @@ export default function LiveRacePage() {
             )}
           </div>
         ) : (
-          <div className="px-3 py-1.5 flex items-center justify-between gap-2">
+          <div className="px-3 py-2 flex items-center justify-between gap-2" style={{height: '10vh'}}>
             <div className="flex items-baseline gap-1">
-              <span className="text-lg font-bold font-mono text-slate-900 tabular-nums">
+              <span className="text-2xl font-bold font-mono text-slate-900 tabular-nums">
                 {currentPos ? currentPos.speed_kts.toFixed(1) : '—'}
               </span>
-              <span className="text-[10px] text-slate-500 uppercase">kts</span>
+              <span className="text-xs text-slate-500 uppercase">kts</span>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className="text-lg font-bold font-mono text-slate-900 tabular-nums">
+              <span className="text-2xl font-bold font-mono text-slate-900 tabular-nums">
                 {currentPos ? Math.round(currentPos.heading) : '—'}°
               </span>
-              <span className="text-[10px] text-slate-500 uppercase">HDG</span>
+              <span className="text-xs text-slate-500 uppercase">HDG</span>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className="text-lg font-bold font-mono text-green-600 tabular-nums">
+              <span className="text-2xl font-bold font-mono text-green-600 tabular-nums">
                 {distToMark != null ? formatNm(distToMark) : '—'}
               </span>
-              <span className="text-[10px] text-slate-500 uppercase">to mark</span>
+              <span className="text-xs text-slate-500 uppercase">to mark</span>
             </div>
             <div className="flex items-baseline gap-1">
-              <span className="text-sm font-mono text-slate-600 tabular-nums">
+              <span className="text-lg font-mono text-slate-600 tabular-nums">
                 {distToFinish != null ? formatNm(distToFinish) : '—'}
               </span>
-              <span className="text-[10px] text-slate-500 uppercase">finish</span>
+              <span className="text-xs text-slate-500 uppercase">finish</span>
             </div>
             {bearingToMark != null && nextMark && (
-              <span className="text-[10px] text-slate-500 hidden sm:inline">
+              <span className="text-xs text-slate-500 hidden sm:inline">
                 {Math.round(bearingToMark)}° ({compassPoint(bearingToMark)}) → {nextMark.name}
               </span>
             )}
