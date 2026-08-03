@@ -1048,32 +1048,32 @@ export default function LiveRacePage() {
           {/* Arrow icon + "Bearing To Mark" label */}
           <div className="flex items-center gap-1.5 mb-2">
             <span className="text-base">⤴️</span>
-            <span className="text-[9px] uppercase tracking-widest text-slate-500 font-semibold">
+            <span className="text-[11px] uppercase tracking-widest text-slate-500 font-semibold">
               {nextMarkIndex >= marks.length ? 'Finish' : nextMark?.name || `Mark ${nextMarkIndex + 1}`}
             </span>
           </div>
           {/* 2×2 data grid */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-slate-500">BTM</div>
-              <div className="text-lg font-bold font-mono text-slate-900 tabular-nums leading-tight">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500">BTM</div>
+              <div className="text-xl font-bold font-mono text-slate-900 tabular-nums leading-tight">
                 {btmDeg != null ? `${Math.round(btmDeg)}°` : '—'}
               </div>
             </div>
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-slate-500">Speed</div>
-              <div className="text-lg font-bold font-mono text-slate-900 tabular-nums leading-tight">
+              <div className="text-[11px] uppercase tracking-wide text-slate-500">Speed</div>
+              <div className="text-xl font-bold font-mono text-slate-900 tabular-nums leading-tight">
                 {currentPos ? currentPos.speed_kts.toFixed(1) : '—'}<span className="text-[10px] text-slate-500 ml-0.5">kts</span>
               </div>
             </div>
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-slate-500">ETA</div>
+              <div className="text-[11px] uppercase tracking-wide text-slate-500">ETA</div>
               <div className="text-sm font-semibold font-mono text-slate-900 tabular-nums leading-tight">
                 {timeToMarkLabel}
               </div>
             </div>
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-slate-500">Dist</div>
+              <div className="text-[11px] uppercase tracking-wide text-slate-500">Dist</div>
               <div className="text-sm font-semibold font-mono text-green-400 tabular-nums leading-tight">
                 {distToMark != null ? formatNm(distToMark) : '—'}
               </div>
