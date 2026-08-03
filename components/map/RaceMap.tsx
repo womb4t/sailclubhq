@@ -254,36 +254,15 @@ export default function RaceMap({
     const heading = currentPosition.heading ?? 0
     const posIcon = L.divIcon({
       html: `
-        <div style="position:relative;width:32px;height:32px">
-          <div style="
-            position:absolute;inset:0;
-            background:#2563eb;
-            border-radius:50%;
-            border:3px solid #fff;
-            box-shadow:0 2px 8px rgba(37,99,235,0.6);
-            animation:pulse 2s infinite;
-          "></div>
-          <div style="
-            position:absolute;
-            left:50%;top:50%;
-            width:0;height:0;
-            border-left:5px solid transparent;
-            border-right:5px solid transparent;
-            border-bottom:14px solid #2563eb;
-            transform:translate(-50%,-100%) rotate(${heading}deg);
-            transform-origin:50% 100%;
-          "></div>
+        <div style="position:relative;width:20px;height:20px">
+          <svg width="20" height="20" viewBox="0 0 20 20" style="transform:rotate(${heading}deg);transform-origin:center">
+            <path d="M10 1 L14 16 L10 13 L6 16 Z" fill="#ef4444" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
         </div>
-        <style>
-          @keyframes pulse {
-            0%,100%{box-shadow:0 2px 8px rgba(37,99,235,0.6)}
-            50%{box-shadow:0 2px 16px rgba(37,99,235,0.9)}
-          }
-        </style>
       `,
       className: '',
-      iconSize: [32, 32],
-      iconAnchor: [16, 16],
+      iconSize: [20, 20],
+      iconAnchor: [10, 10],
     })
 
     if (posMarkerRef.current) {

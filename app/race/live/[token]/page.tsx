@@ -1025,7 +1025,7 @@ export default function LiveRacePage() {
           >
             {night ? '☀' : '🌙'}
           </button>
-          <Link href="/dashboard/races" className="text-xs text-slate-400 hover:text-white shrink-0 ml-1">
+          <Link href="/dashboard/races" className="text-xs text-slate-500 hover:text-white shrink-0 ml-1">
             ✕
           </Link>
         </div>
@@ -1041,39 +1041,39 @@ export default function LiveRacePage() {
       {/* BTM data card — floating top-left, Garmin-style compact 2×2 grid */}
       {isRacing && !finished && (
         <div className={`absolute top-24 left-3 z-[1000] rounded-xl shadow-2xl ${
-          night ? 'bg-gray-900/90' : 'bg-slate-900/85'
+          night ? 'bg-gray-900/90' : 'bg-white/90'
         } backdrop-blur-md border ${
-          night ? 'border-gray-700/50' : 'border-slate-700/50'
+          night ? 'border-gray-700/50' : 'border-slate-300'
         } px-3 py-2.5 min-w-[160px]`}>
           {/* Arrow icon + "Bearing To Mark" label */}
           <div className="flex items-center gap-1.5 mb-2">
             <span className="text-base">⤴️</span>
-            <span className="text-[9px] uppercase tracking-widest text-slate-400 font-semibold">
+            <span className="text-[9px] uppercase tracking-widest text-slate-500 font-semibold">
               {nextMarkIndex >= marks.length ? 'Finish' : nextMark?.name || `Mark ${nextMarkIndex + 1}`}
             </span>
           </div>
           {/* 2×2 data grid */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-slate-400">BTM</div>
-              <div className="text-lg font-bold font-mono text-white tabular-nums leading-tight">
+              <div className="text-[9px] uppercase tracking-wide text-slate-500">BTM</div>
+              <div className="text-lg font-bold font-mono text-slate-900 tabular-nums leading-tight">
                 {btmDeg != null ? `${Math.round(btmDeg)}°` : '—'}
               </div>
             </div>
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-slate-400">Speed</div>
-              <div className="text-lg font-bold font-mono text-white tabular-nums leading-tight">
-                {currentPos ? currentPos.speed_kts.toFixed(1) : '—'}<span className="text-[10px] text-slate-400 ml-0.5">kts</span>
+              <div className="text-[9px] uppercase tracking-wide text-slate-500">Speed</div>
+              <div className="text-lg font-bold font-mono text-slate-900 tabular-nums leading-tight">
+                {currentPos ? currentPos.speed_kts.toFixed(1) : '—'}<span className="text-[10px] text-slate-500 ml-0.5">kts</span>
               </div>
             </div>
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-slate-400">ETA</div>
-              <div className="text-sm font-semibold font-mono text-white tabular-nums leading-tight">
+              <div className="text-[9px] uppercase tracking-wide text-slate-500">ETA</div>
+              <div className="text-sm font-semibold font-mono text-slate-900 tabular-nums leading-tight">
                 {timeToMarkLabel}
               </div>
             </div>
             <div>
-              <div className="text-[9px] uppercase tracking-wide text-slate-400">Dist</div>
+              <div className="text-[9px] uppercase tracking-wide text-slate-500">Dist</div>
               <div className="text-sm font-semibold font-mono text-green-400 tabular-nums leading-tight">
                 {distToMark != null ? formatNm(distToMark) : '—'}
               </div>
@@ -1126,7 +1126,7 @@ export default function LiveRacePage() {
           <div className={`rounded-full px-4 py-1.5 text-xs font-semibold shadow-xl backdrop-blur-md border ${
             night
               ? 'bg-gray-900/90 border-gray-700/50 text-white'
-              : 'bg-slate-900/85 border-slate-700/50 text-white'
+              : 'bg-white/90 border-slate-300 text-white'
           } flex items-center gap-2 whitespace-nowrap`}>
             <span>→</span>
             <span className="font-bold">
@@ -1194,14 +1194,10 @@ export default function LiveRacePage() {
       )}
 
       {/* Bottom panel: synchronised countdown (shared) or instruments */}
-      {/* Floats over the map at the bottom, translucent */}
+      {/* Compact floating bar — minimal screen real estate */}
       <div className={`absolute bottom-0 left-0 right-0 z-[900] ${
-        showCountdown ? '' : 'h-44'
-      } ${
-        night ? 'bg-gray-950/90' : 'bg-gray-950/90'
-      } backdrop-blur-md border-t ${
-        night ? 'border-gray-800/60' : 'border-gray-800/60'
-      }`}>
+        showCountdown ? '' : ''
+      } bg-slate-100/95 backdrop-blur-md border-t border-slate-300`}>
         {showCountdown ? (
           <div>
             <StartCountdown
@@ -1210,60 +1206,42 @@ export default function LiveRacePage() {
               speedMultiplier={isSim ? SIM_SPEED_MULTIPLIER : 1}
             />
             {startClasses.length > 0 && (
-              <p className="text-xs text-gray-500 py-1.5 text-center">
+              <p className="text-xs text-slate-500 py-1.5 text-center">
                 {startClasses[0].name} — {new Date(startTimeIso ?? startClasses[0].start_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
               </p>
             )}
           </div>
         ) : (
-          <div className="px-4 py-3">
-            {/* Row 1: Speed / Heading / Dist to mark */}
-            <div className="grid grid-cols-3 gap-2 mb-2">
-              <div className="text-center">
-                <div className="text-3xl font-bold font-mono text-white tabular-nums">
-                  {currentPos ? currentPos.speed_kts.toFixed(1) : '—'}
-                </div>
-                <div className="text-xs text-gray-500 uppercase tracking-wide mt-0.5">kts</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold font-mono text-white tabular-nums">
-                  {currentPos ? Math.round(currentPos.heading) : '—'}°
-                </div>
-                <div className="text-xs text-gray-500 uppercase tracking-wide mt-0.5">HDG</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold font-mono text-green-400 tabular-nums">
-                  {distToMark != null ? formatNm(distToMark) : '—'}
-                </div>
-                <div className="text-xs text-gray-500 uppercase tracking-wide mt-0.5">To Mark</div>
-              </div>
+          <div className="px-3 py-1.5 flex items-center justify-between gap-2">
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-bold font-mono text-slate-900 tabular-nums">
+                {currentPos ? currentPos.speed_kts.toFixed(1) : '—'}
+              </span>
+              <span className="text-[10px] text-slate-500 uppercase">kts</span>
             </div>
-
-            {/* Divider */}
-            <div className="border-t border-gray-800 mb-2" />
-
-            {/* Row 2: dist to finish / lap / bearing */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <span className="text-xs text-gray-500">To finish: </span>
-                <span className="text-sm font-semibold text-white font-mono">
-                  {distToFinish != null ? formatNm(distToFinish) : '—'}
-                </span>
-                <span className="text-xs text-gray-500 ml-3">Lap </span>
-                <span className="text-sm font-semibold text-white font-mono">{currentLap}/{totalLaps}</span>
-              </div>
-              <div className="text-right">
-                {bearingToMark != null && nextMark ? (
-                  <span className="text-xs text-gray-400">
-                    {Math.round(bearingToMark)}° ({compassPoint(bearingToMark)}) → {nextMark.name}
-                  </span>
-                ) : nextMarkIndex >= marks.length ? (
-                  <span className="text-xs text-green-400">→ Finish line</span>
-                ) : (
-                  <span className="text-xs text-gray-600">No bearing</span>
-                )}
-              </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-bold font-mono text-slate-900 tabular-nums">
+                {currentPos ? Math.round(currentPos.heading) : '—'}°
+              </span>
+              <span className="text-[10px] text-slate-500 uppercase">HDG</span>
             </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-lg font-bold font-mono text-green-600 tabular-nums">
+                {distToMark != null ? formatNm(distToMark) : '—'}
+              </span>
+              <span className="text-[10px] text-slate-500 uppercase">to mark</span>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-sm font-mono text-slate-600 tabular-nums">
+                {distToFinish != null ? formatNm(distToFinish) : '—'}
+              </span>
+              <span className="text-[10px] text-slate-500 uppercase">finish</span>
+            </div>
+            {bearingToMark != null && nextMark && (
+              <span className="text-[10px] text-slate-500 hidden sm:inline">
+                {Math.round(bearingToMark)}° ({compassPoint(bearingToMark)}) → {nextMark.name}
+              </span>
+            )}
           </div>
         )}
       </div>
